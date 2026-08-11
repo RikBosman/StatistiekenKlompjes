@@ -95,6 +95,20 @@ export async function fetchOrders(afterDate?: string, beforeDate?: string): Prom
   return fetchAllPages<WCOrder>(client, '/orders', params)
 }
 
+export async function fetchOrdersPage(
+  page: number,
+  afterDate?: string,
+  beforeDate?: string
+): Promise<{ orders: WCOrder[]; totalPages: number }> {
+  const client = createWooCommerceClient()
+  const params: Record<string, string | number> = { status: 'any', per_page: 100, page }
+  if (afterDate) params.after = afterDate
+  if (beforeDate) params.before = beforeDate
+  const response = await client.get<WCOrder[]>('/orders', { params })
+  const totalPages = parseInt(response.headers['x-wp-totalpages'] || '1', 10)
+  return { orders: response.data, totalPages }
+}
+
 export async function fetchProductCOGS(productId: number): Promise<number | null> {
   const client = createWooCommerceClient()
   const response = await client.get<WCProduct>(`/products/${productId}`)

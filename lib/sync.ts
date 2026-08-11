@@ -1,5 +1,5 @@
 import { prisma } from './db'
-import { fetchProducts, fetchOrders } from './woocommerce'
+import { fetchProducts, fetchOrdersPage } from './woocommerce'
 
 export async function syncProducts(): Promise<{ count: number; error?: string }> {
   try {
@@ -57,97 +57,100 @@ export async function syncOrders(afterDate?: string, beforeDate?: string): Promi
       }
     }
 
-    const orders = await fetchOrders(after, beforeDate)
+    let page = 1
+    let totalPages = 1
+    let count = 0
 
-    for (const o of orders) {
-      const customerEmail = o.billing?.email || ''
-      const customerName = `${o.billing?.first_name || ''} ${o.billing?.last_name || ''}`.trim()
+    while (page <= totalPages) {
+      const { orders, totalPages: tp } = await fetchOrdersPage(page, after, beforeDate)
+      totalPages = tp
 
-      // Upsert customer
-      let customer = null
-      if (o.customer_id && customerEmail) {
-        customer = await prisma.customer.upsert({
-          where: { id: o.customer_id },
+      for (const o of orders) {
+        const customerEmail = o.billing?.email || ''
+        const customerName = `${o.billing?.first_name || ''} ${o.billing?.last_name || ''}`.trim()
+
+        let customer = null
+        if (o.customer_id && customerEmail) {
+          customer = await prisma.customer.upsert({
+            where: { id: o.customer_id },
+            create: {
+              id: o.customer_id,
+              email: customerEmail,
+              firstName: o.billing?.first_name || '',
+              lastName: o.billing?.last_name || '',
+            },
+            update: {
+              email: customerEmail,
+              firstName: o.billing?.first_name || '',
+              lastName: o.billing?.last_name || '',
+            },
+          })
+        }
+
+        await prisma.order.upsert({
+          where: { id: o.id },
           create: {
-            id: o.customer_id,
-            email: customerEmail,
-            firstName: o.billing?.first_name || '',
-            lastName: o.billing?.last_name || '',
+            id: o.id,
+            date: new Date(o.date_created),
+            customerId: customer?.id || null,
+            customerEmail,
+            customerName,
+            total: parseFloat(o.total) || 0,
+            shippingTotal: parseFloat(o.shipping_total) || 0,
+            status: o.status,
+            syncedAt: new Date(),
           },
           update: {
-            email: customerEmail,
-            firstName: o.billing?.first_name || '',
-            lastName: o.billing?.last_name || '',
+            status: o.status,
+            total: parseFloat(o.total) || 0,
+            shippingTotal: parseFloat(o.shipping_total) || 0,
+            syncedAt: new Date(),
           },
         })
-      }
 
-      // Upsert order
-      await prisma.order.upsert({
-        where: { id: o.id },
-        create: {
-          id: o.id,
-          date: new Date(o.date_created),
-          customerId: customer?.id || null,
-          customerEmail,
-          customerName,
-          total: parseFloat(o.total) || 0,
-          shippingTotal: parseFloat(o.shipping_total) || 0,
-          status: o.status,
-          syncedAt: new Date(),
-        },
-        update: {
-          status: o.status,
-          total: parseFloat(o.total) || 0,
-          shippingTotal: parseFloat(o.shipping_total) || 0,
-          syncedAt: new Date(),
-        },
-      })
-
-      // Sync line items
-      await prisma.orderItem.deleteMany({ where: { orderId: o.id } })
-      for (const item of o.line_items || []) {
-        await prisma.orderItem.create({
-          data: {
-            orderId: o.id,
-            productId: item.product_id || null,
-            name: item.name,
-            quantity: item.quantity,
-            total: parseFloat(item.total) || 0,
-            sku: item.sku || null,
-          },
-        })
-      }
-
-      // Update first order date on product
-      if (o.status !== 'cancelled' && o.status !== 'refunded') {
+        await prisma.orderItem.deleteMany({ where: { orderId: o.id } })
         for (const item of o.line_items || []) {
-          if (item.product_id) {
-            const product = await prisma.product.findUnique({
-              where: { id: item.product_id },
-            })
-            if (product) {
-              const orderDate = new Date(o.date_created)
-              if (!product.firstOrderDate || orderDate < product.firstOrderDate) {
-                await prisma.product.update({
-                  where: { id: item.product_id },
-                  data: { firstOrderDate: orderDate },
-                })
+          await prisma.orderItem.create({
+            data: {
+              orderId: o.id,
+              productId: item.product_id || null,
+              name: item.name,
+              quantity: item.quantity,
+              total: parseFloat(item.total) || 0,
+              sku: item.sku || null,
+            },
+          })
+        }
+
+        if (o.status !== 'cancelled' && o.status !== 'refunded') {
+          for (const item of o.line_items || []) {
+            if (item.product_id) {
+              const product = await prisma.product.findUnique({ where: { id: item.product_id } })
+              if (product) {
+                const orderDate = new Date(o.date_created)
+                if (!product.firstOrderDate || orderDate < product.firstOrderDate) {
+                  await prisma.product.update({
+                    where: { id: item.product_id },
+                    data: { firstOrderDate: orderDate },
+                  })
+                }
               }
             }
           }
         }
       }
+
+      count += orders.length
+      page++
     }
 
-    // Tag logo/tekst customers
     await tagLogoTekstCustomers()
 
     await prisma.syncLog.create({
-      data: { type: 'orders', status: 'success', itemCount: orders.length },
+      data: { type: 'orders', status: 'success', itemCount: count },
     })
 
-    return { count: orders.length }
+    return { count }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     await prisma.syncLog.create({
