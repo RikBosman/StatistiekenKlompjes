@@ -50,14 +50,6 @@ export default async function DashboardPage() {
           <h2 className="text-2xl font-semibold text-slate-900">Overzicht</h2>
           <p className="text-slate-500 text-sm mt-1">Laatste 30 dagen</p>
         </div>
-        <form action="/api/sync" method="POST">
-          <button
-            type="submit"
-            className="px-4 py-2 bg-brand-600 text-white text-sm rounded-md hover:bg-brand-700 transition-colors"
-          >
-            Sync nu
-          </button>
-        </form>
       </div>
 
       {/* Stats row */}
