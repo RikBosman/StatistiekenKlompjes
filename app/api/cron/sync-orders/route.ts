@@ -11,6 +11,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const result = await syncOrders()
+  const { searchParams } = new URL(req.url)
+  const after = searchParams.get('after') ?? undefined
+  const before = searchParams.get('before') ?? undefined
+
+  const result = await syncOrders(after, before)
   return NextResponse.json(result)
 }

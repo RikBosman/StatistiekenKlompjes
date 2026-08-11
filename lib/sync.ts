@@ -46,18 +46,18 @@ export async function syncProducts(): Promise<{ count: number; error?: string }>
   }
 }
 
-export async function syncOrders(): Promise<{ count: number; error?: string }> {
+export async function syncOrders(afterDate?: string, beforeDate?: string): Promise<{ count: number; error?: string }> {
   try {
-    // Find last synced order date to do incremental sync
-    const lastOrder = await prisma.order.findFirst({
-      orderBy: { date: 'desc' },
-    })
+    let after = afterDate
+    if (!after && !beforeDate) {
+      // Incremental: pick up from last synced order
+      const lastOrder = await prisma.order.findFirst({ orderBy: { date: 'desc' } })
+      if (lastOrder) {
+        after = new Date(lastOrder.date.getTime() - 24 * 60 * 60 * 1000).toISOString()
+      }
+    }
 
-    const afterDate = lastOrder
-      ? new Date(lastOrder.date.getTime() - 24 * 60 * 60 * 1000).toISOString()
-      : undefined
-
-    const orders = await fetchOrders(afterDate)
+    const orders = await fetchOrders(after, beforeDate)
 
     for (const o of orders) {
       const customerEmail = o.billing?.email || ''

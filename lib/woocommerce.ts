@@ -87,10 +87,11 @@ export async function fetchProducts(): Promise<WCProduct[]> {
   return fetchAllPages<WCProduct>(client, '/products', { status: 'publish' })
 }
 
-export async function fetchOrders(afterDate?: string): Promise<WCOrder[]> {
+export async function fetchOrders(afterDate?: string, beforeDate?: string): Promise<WCOrder[]> {
   const client = createWooCommerceClient()
   const params: Record<string, string | number> = { status: 'any' }
   if (afterDate) params.after = afterDate
+  if (beforeDate) params.before = beforeDate
   return fetchAllPages<WCOrder>(client, '/orders', params)
 }
 
