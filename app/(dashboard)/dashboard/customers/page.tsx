@@ -42,7 +42,7 @@ export default async function CustomersPage() {
           },
         },
         reminders: {
-          orderBy: { createdAt: 'desc' },
+          orderBy: { triggeredAt: 'desc' },
           take: 1,
         },
       },
