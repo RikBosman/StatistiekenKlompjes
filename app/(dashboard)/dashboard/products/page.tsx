@@ -24,9 +24,9 @@ const statusColor: Record<ProductStatus, string> = {
 export default async function ProductsPage({
   searchParams,
 }: {
-  searchParams: { filter?: string; q?: string; period?: string }
+  searchParams: Promise<{ filter?: string; q?: string; period?: string }>
 }) {
-  const period = searchParams.period ?? '30d'
+  const { period = '30d', filter, q } = await searchParams
   const { label: periodLabel } = periodToRange(period)
 
   let products = null
@@ -58,8 +58,8 @@ export default async function ProductsPage({
     )
   }
 
-  const activeFilter = searchParams.filter ?? 'all'
-  const query = (searchParams.q ?? '').toLowerCase()
+  const activeFilter = filter ?? 'all'
+  const query = (q ?? '').toLowerCase()
 
   // Extra search params to preserve when switching period
   const extraParams = [

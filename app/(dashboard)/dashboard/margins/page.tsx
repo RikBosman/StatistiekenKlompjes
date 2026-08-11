@@ -8,9 +8,9 @@ export const revalidate = 300
 export default async function MarginsPage({
   searchParams,
 }: {
-  searchParams: { period?: string }
+  searchParams: Promise<{ period?: string }>
 }) {
-  const period = searchParams.period ?? '6m'
+  const { period = '6m' } = await searchParams
   const { label: periodLabel } = periodToRange(period)
 
   let data = null

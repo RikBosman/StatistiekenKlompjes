@@ -11,9 +11,9 @@ export const revalidate = 300
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: { period?: string }
+  searchParams: Promise<{ period?: string }>
 }) {
-  const period = searchParams.period ?? '30d'
+  const { period = '30d' } = await searchParams
 
   let stats = null
   let marginData = null

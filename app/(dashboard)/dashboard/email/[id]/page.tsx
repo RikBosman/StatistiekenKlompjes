@@ -5,9 +5,10 @@ import { notFound } from 'next/navigation'
 
 export const revalidate = 0
 
-export default async function CampaignDetailPage({ params }: { params: { id: string } }) {
+export default async function CampaignDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   const campaign = await prisma.campaign.findUnique({
-    where: { id: Number(params.id) },
+    where: { id: Number(id) },
     include: {
       template: true,
       list: true,

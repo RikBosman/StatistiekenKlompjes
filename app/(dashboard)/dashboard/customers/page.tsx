@@ -8,9 +8,9 @@ export const revalidate = 300
 export default async function CustomersPage({
   searchParams,
 }: {
-  searchParams: { period?: string }
+  searchParams: Promise<{ period?: string }>
 }) {
-  const period = searchParams.period ?? '30d'
+  const { period = '30d' } = await searchParams
   const { label: periodLabel } = periodToRange(period)
 
   let analytics = null
