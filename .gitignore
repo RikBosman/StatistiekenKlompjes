@@ -48,5 +48,6 @@ prisma/migrations/
 .idea/
 .vscode/
 *.sublime-project
+*.sublime-workspace
 *.swp
 *.swo
