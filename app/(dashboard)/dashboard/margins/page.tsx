@@ -31,18 +31,17 @@ export default async function MarginsPage() {
       <div className="mb-6">
         <h2 className="text-2xl font-semibold text-slate-900">Marges & Kosten</h2>
         <p className="text-slate-500 text-sm mt-1">
-          Omzet − Inkoopkosten − Verzendkosten − Advertentiekosten = Bruto marge
+          Omzet − Inkoopkosten − Verzendkosten = Bruto marge
         </p>
       </div>
 
       {/* Current month summary */}
       {latest && (
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {[
             { label: 'Omzet', value: formatCurrency(latest.revenue), color: 'text-slate-900' },
             { label: 'Inkoopkosten', value: formatCurrency(latest.cogs), color: 'text-amber-600' },
             { label: 'Verzendkosten', value: formatCurrency(latest.shippingCharged), color: 'text-amber-600' },
-            { label: 'Advertentiekosten', value: formatCurrency(latest.adSpend), color: 'text-amber-600' },
             {
               label: 'Bruto marge',
               value: `${formatPercent(latest.grossMarginPct)} (${formatCurrency(latest.grossMargin)})`,
@@ -76,7 +75,6 @@ export default async function MarginsPage() {
                   <th className="text-right px-4 py-3 font-medium text-slate-600">Omzet</th>
                   <th className="text-right px-4 py-3 font-medium text-slate-600">Inkoop</th>
                   <th className="text-right px-4 py-3 font-medium text-slate-600">Verzending</th>
-                  <th className="text-right px-4 py-3 font-medium text-slate-600">Advertenties</th>
                   <th className="text-right px-4 py-3 font-medium text-slate-600">Bruto marge</th>
                   <th className="text-right px-4 py-3 font-medium text-slate-600">%</th>
                 </tr>
@@ -88,7 +86,6 @@ export default async function MarginsPage() {
                     <td className="px-4 py-3 text-right text-slate-700">{formatCurrency(row.revenue)}</td>
                     <td className="px-4 py-3 text-right text-slate-500">{formatCurrency(row.cogs)}</td>
                     <td className="px-4 py-3 text-right text-slate-500">{formatCurrency(row.shippingCharged)}</td>
-                    <td className="px-4 py-3 text-right text-slate-500">{formatCurrency(row.adSpend)}</td>
                     <td className={`px-4 py-3 text-right font-medium ${row.grossMargin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                       {formatCurrency(row.grossMargin)}
                     </td>
@@ -106,8 +103,7 @@ export default async function MarginsPage() {
       {/* Note about data sources */}
       <div className="mt-6 bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-700">
         <strong>Let op:</strong> Verzendkosten = bedrag dat de klant heeft betaald (niet de werkelijke
-        verzendkosten). Google Ads-kosten worden getoond als de API is geconfigureerd.
-        Inkoopkosten worden geladen via het <code>_wc_cog_cost</code> veld per product.
+        verzendkosten). Inkoopkosten worden geladen via het <code>_wc_cog_cost</code> veld per product.
       </div>
     </div>
   )

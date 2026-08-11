@@ -23,7 +23,6 @@ export default function MarginChart({ data }: Props) {
     Omzet: Math.round(d.revenue),
     Inkoop: Math.round(d.cogs),
     Verzending: Math.round(d.shippingCharged),
-    Advertenties: Math.round(d.adSpend),
     'Marge %': Math.round(d.grossMarginPct),
   }))
 
@@ -44,7 +43,6 @@ export default function MarginChart({ data }: Props) {
         <Bar yAxisId="left" dataKey="Omzet" fill="#0e8ee7" radius={[3, 3, 0, 0]} />
         <Bar yAxisId="left" dataKey="Inkoop" fill="#f59e0b" radius={[3, 3, 0, 0]} />
         <Bar yAxisId="left" dataKey="Verzending" fill="#f97316" radius={[3, 3, 0, 0]} />
-        <Bar yAxisId="left" dataKey="Advertenties" fill="#a855f7" radius={[3, 3, 0, 0]} />
         <Line yAxisId="right" type="monotone" dataKey="Marge %" stroke="#10b981" strokeWidth={2} dot={{ r: 3 }} />
       </ComposedChart>
     </ResponsiveContainer>

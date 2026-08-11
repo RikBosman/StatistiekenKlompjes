@@ -44,7 +44,6 @@ npm run dev
 | `CRON_SECRET` | Ja | Willekeurig wachtwoord voor cron endpoints |
 | `NEW_PRODUCT_WINDOW_DAYS` | Nee | Hoeveel dagen een product "nieuw" is (standaard: 60) |
 | `REMINDER_MONTHS` | Nee | Maanden wachten voor herinnering (standaard: 3) |
-| `GOOGLE_ADS_*` | Nee | Google Ads API (optioneel, zie §Google Ads) |
 
 ## Geplande taken
 
@@ -71,6 +70,7 @@ jobs:
       - run: curl -X POST ${{ secrets.DASHBOARD_URL }}/api/cron/sync-products -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
       - run: curl -X POST ${{ secrets.DASHBOARD_URL }}/api/cron/sync-orders -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
       - run: curl -X POST ${{ secrets.DASHBOARD_URL }}/api/cron/process-reminders -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+
 ```
 
 ### Optie B — Worker process (VPS/Railway met persistent process)
@@ -79,22 +79,12 @@ jobs:
 npm run worker
 ```
 
-## Google Ads (optioneel)
-
-Vereist:
-1. Google Ads Developer Token aanvragen via [Google Ads API](https://developers.google.com/google-ads/api/docs/get-started/dev-token)
-2. OAuth2 client ID & secret aanmaken in Google Cloud Console
-3. Refresh token genereren via OAuth flow
-4. `GOOGLE_ADS_CUSTOMER_ID` invullen (je Ads klant-ID zonder streepjes)
-
-Zodra geconfigureerd, implementeer de sync in `lib/google-ads.ts` en activeer `/api/cron/sync-ads`.
-
 ## Open vragen (zie spec §11)
 
 1. **COGS-veld**: het dashboard verwacht `_wc_cog_cost` (plugin "Cost of Goods for WooCommerce"). Controleer welk veld jouw winkel gebruikt via WooCommerce → Producten → [product] → Productdata.
 2. **Definitie "nieuw product"**: standaard = eerste verkoopdatum binnen 60 dagen. Pas `NEW_PRODUCT_WINDOW_DAYS` aan of verander de logica naar `date_created` in `lib/analytics.ts:getProductPerformance`.
 3. **Verzendkosten**: het dashboard toont `shipping_total` (wat de klant betaalt). Voor werkelijke kosten: voeg een handmatige kostenkolom toe of koppel de carrier API.
-4. **Google Ads**: zie §Google Ads hierboven.
+4. **Google Ads**: wordt later toegevoegd.
 5. **Hosting**: standalone Node.js app — past niet op gedeelde DirectAdmin hosting. Gebruik Railway, Render, of een VPS.
 
 ## Tech stack

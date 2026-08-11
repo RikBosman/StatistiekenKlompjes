@@ -28,10 +28,3 @@ jobs:
           curl -fsS -X POST \
             "${{ secrets.DASHBOARD_URL }}/api/cron/process-reminders" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
-
-      - name: Sync Google Ads (optional)
-        run: |
-          curl -fsS -X POST \
-            "${{ secrets.DASHBOARD_URL }}/api/cron/sync-ads" \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" || echo "Ads sync skipped (not configured)"
-        continue-on-error: true

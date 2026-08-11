@@ -35,11 +35,6 @@ export default async function SettingsPage() {
             status={!!process.env.MAILTRAP_API_TOKEN}
             value={process.env.MAILTRAP_API_TOKEN ? 'Token aanwezig' : 'Niet ingesteld'}
           />
-          <ConfigRow
-            label="Google Ads"
-            status={!!process.env.GOOGLE_ADS_DEVELOPER_TOKEN}
-            value={process.env.GOOGLE_ADS_DEVELOPER_TOKEN ? 'Token aanwezig' : 'Niet geconfigureerd (optioneel)'}
-          />
         </div>
       </div>
 
@@ -53,7 +48,6 @@ export default async function SettingsPage() {
           <p><span className="text-slate-400">POST</span> /api/cron/sync-products</p>
           <p><span className="text-slate-400">POST</span> /api/cron/sync-orders</p>
           <p><span className="text-slate-400">POST</span> /api/cron/process-reminders</p>
-          <p><span className="text-slate-400">POST</span> /api/cron/sync-ads <span className="text-slate-400 font-sans">(optioneel)</span></p>
         </div>
         <p className="text-xs text-slate-400 mt-3">
           Stuur header: <code className="bg-slate-100 px-1 rounded">Authorization: Bearer {'<CRON_SECRET>'}</code>
