@@ -1,0 +1,130 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Product {
+  id             Int      @id
+  name           String
+  sku            String?
+  cogs           Float?
+  firstOrderDate DateTime?
+  createdAt      DateTime
+  status         String
+  categories     String   // JSON array of category names
+  syncedAt       DateTime @default(now())
+
+  orderItems OrderItem[]
+
+  @@map("products")
+}
+
+model Order {
+  id            Int      @id
+  date          DateTime
+  customerId    Int?
+  customerEmail String
+  customerName  String
+  total         Float
+  shippingTotal Float
+  status        String
+  syncedAt      DateTime @default(now())
+
+  lineItems OrderItem[]
+  customer  Customer?   @relation(fields: [customerId], references: [id])
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id        Int    @id @default(autoincrement())
+  orderId   Int
+  productId Int?
+  name      String
+  quantity  Int
+  total     Float
+  sku       String?
+
+  order   Order    @relation(fields: [orderId], references: [id])
+  product Product? @relation(fields: [productId], references: [id])
+
+  @@map("order_items")
+}
+
+model Customer {
+  id        Int      @id
+  email     String   @unique
+  firstName String
+  lastName  String
+  tags      String   @default("[]") // JSON array of tags
+
+  orders    Order[]
+  reminders Reminder[]
+
+  @@map("customers")
+}
+
+model Reminder {
+  id           Int      @id @default(autoincrement())
+  customerId   Int
+  campaign     String
+  orderId      Int?
+  triggeredAt  DateTime @default(now())
+  sentAt       DateTime?
+  scheduledFor DateTime?
+  status       String   @default("pending") // pending, sent, failed
+
+  customer Customer @relation(fields: [customerId], references: [id])
+
+  @@map("reminders")
+}
+
+model AdSpend {
+  id         Int      @id @default(autoincrement())
+  date       DateTime
+  campaign   String
+  campaignId String
+  spend      Float
+  clicks     Int      @default(0)
+  impressions Int     @default(0)
+  conversions Int     @default(0)
+
+  @@unique([date, campaignId])
+  @@map("ad_spend")
+}
+
+model EmailTemplate {
+  id               Int      @id @default(autoincrement())
+  name             String
+  subject          String
+  bodyHtml         String
+  linkedProductIds String   @default("[]") // JSON array
+  isDefault        Boolean  @default(false)
+  updatedAt        DateTime @updatedAt
+  createdAt        DateTime @default(now())
+
+  @@map("email_templates")
+}
+
+model SyncLog {
+  id        Int      @id @default(autoincrement())
+  type      String   // products, orders, ads, reminders
+  status    String   // success, failed
+  message   String?
+  itemCount Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@map("sync_logs")
+}
+
+model Settings {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@map("settings")
+}

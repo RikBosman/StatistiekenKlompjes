@@ -1,0 +1,37 @@
+name: Daily sync
+
+on:
+  schedule:
+    # 02:00 UTC every day
+    - cron: '0 2 * * *'
+  workflow_dispatch: # allow manual trigger
+
+jobs:
+  sync:
+    name: Sync WooCommerce data
+    runs-on: ubuntu-latest
+    steps:
+      - name: Sync products
+        run: |
+          curl -fsS -X POST \
+            "${{ secrets.DASHBOARD_URL }}/api/cron/sync-products" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+
+      - name: Sync orders
+        run: |
+          curl -fsS -X POST \
+            "${{ secrets.DASHBOARD_URL }}/api/cron/sync-orders" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+
+      - name: Process reminders
+        run: |
+          curl -fsS -X POST \
+            "${{ secrets.DASHBOARD_URL }}/api/cron/process-reminders" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+
+      - name: Sync Google Ads (optional)
+        run: |
+          curl -fsS -X POST \
+            "${{ secrets.DASHBOARD_URL }}/api/cron/sync-ads" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" || echo "Ads sync skipped (not configured)"
+        continue-on-error: true
