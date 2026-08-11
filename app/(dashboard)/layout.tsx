@@ -2,11 +2,12 @@ import Link from 'next/link'
 import { cn } from '@/lib/utils'
 
 const navItems = [
-  { href: '/dashboard', label: 'Overzicht' },
-  { href: '/dashboard/products', label: 'Producten' },
-  { href: '/dashboard/customers', label: 'Klanten' },
-  { href: '/dashboard/margins', label: 'Marges' },
-  { href: '/dashboard/settings', label: 'Instellingen' },
+  { href: '/dashboard', label: 'Overzicht', icon: '📊' },
+  { href: '/dashboard/products', label: 'Producten', icon: '📦' },
+  { href: '/dashboard/customers', label: 'Klanten', icon: '👥' },
+  { href: '/dashboard/margins', label: 'Marges', icon: '💰' },
+  { href: '/dashboard/email', label: 'E-mail', icon: '✉️' },
+  { href: '/dashboard/settings', label: 'Instellingen', icon: '⚙️' },
 ]
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -26,8 +27,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <Link
               key={item.href}
               href={item.href}
-              className="flex items-center px-3 py-2 rounded-md text-sm text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition-colors mb-0.5"
+              className="flex items-center gap-2.5 px-3 py-2 rounded-md text-sm text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition-colors mb-0.5"
             >
+              <span className="text-base leading-none">{item.icon}</span>
               {item.label}
             </Link>
           ))}

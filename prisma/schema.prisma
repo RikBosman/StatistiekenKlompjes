@@ -62,8 +62,10 @@ model Customer {
   lastName  String
   tags      String   @default("[]") // JSON array of tags
 
-  orders    Order[]
-  reminders Reminder[]
+  orders             Order[]
+  reminders          Reminder[]
+  listMemberships    CustomerListMember[]
+  campaignRecipients CampaignRecipient[]
 
   @@map("customers")
 }
@@ -107,7 +109,66 @@ model EmailTemplate {
   updatedAt        DateTime @updatedAt
   createdAt        DateTime @default(now())
 
+  campaigns Campaign[]
+
   @@map("email_templates")
+}
+
+model CustomerList {
+  id        Int      @id @default(autoincrement())
+  name      String
+  createdAt DateTime @default(now())
+
+  members   CustomerListMember[]
+  campaigns Campaign[]
+
+  @@map("customer_lists")
+}
+
+model CustomerListMember {
+  listId     Int
+  customerId Int
+  addedAt    DateTime @default(now())
+
+  list     CustomerList @relation(fields: [listId], references: [id], onDelete: Cascade)
+  customer Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@id([listId, customerId])
+  @@map("customer_list_members")
+}
+
+model Campaign {
+  id          Int       @id @default(autoincrement())
+  name        String
+  templateId  Int
+  segmentType String?   // logo_buyer | inactive_3m | top_customers | list
+  listId      Int?
+  status      String    @default("draft") // draft | sent | failed
+  totalSent   Int       @default(0)
+  createdAt   DateTime  @default(now())
+  sentAt      DateTime?
+
+  template   EmailTemplate      @relation(fields: [templateId], references: [id])
+  list       CustomerList?      @relation(fields: [listId], references: [id])
+  recipients CampaignRecipient[]
+
+  @@map("campaigns")
+}
+
+model CampaignRecipient {
+  id         Int       @id @default(autoincrement())
+  campaignId Int
+  customerId Int
+  email      String
+  firstName  String
+  status     String    @default("pending") // pending | sent | failed
+  sentAt     DateTime?
+  error      String?
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id])
+
+  @@map("campaign_recipients")
 }
 
 model SyncLog {

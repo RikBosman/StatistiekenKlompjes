@@ -128,38 +128,106 @@ export interface OverviewStats {
   newRisingProducts: number
   underperformingProducts: number
   avgOrderValue30d: number
+  // trends vs previous 30d
+  revenueTrend: number
+  ordersTrend: number
+  avgOrderTrend: number
 }
 
 export async function getOverviewStats(): Promise<OverviewStats> {
   const now = new Date()
   const since30d = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+  const since60d = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000)
 
-  const [orders30d, totalCustomers, logoTekstCustomers] = await Promise.all([
+  const [orders30d, ordersPrev30d, totalCustomers, logoTekstCustomers] = await Promise.all([
     prisma.order.findMany({
-      where: {
-        date: { gte: since30d },
-        status: { notIn: ['cancelled', 'refunded'] },
-      },
+      where: { date: { gte: since30d }, status: { notIn: ['cancelled', 'refunded'] } },
+      select: { total: true },
+    }),
+    prisma.order.findMany({
+      where: { date: { gte: since60d, lt: since30d }, status: { notIn: ['cancelled', 'refunded'] } },
       select: { total: true },
     }),
     prisma.customer.count(),
-    prisma.customer.count({
-      where: { tags: { contains: 'logo_buyer' } },
-    }),
+    prisma.customer.count({ where: { tags: { contains: 'logo_buyer' } } }),
   ])
 
   const totalRevenue30d = orders30d.reduce((s, o) => s + o.total, 0)
   const totalOrders30d = orders30d.length
   const avgOrderValue30d = totalOrders30d > 0 ? totalRevenue30d / totalOrders30d : 0
 
+  const prevRevenue = ordersPrev30d.reduce((s, o) => s + o.total, 0)
+  const prevOrders = ordersPrev30d.length
+  const prevAvg = prevOrders > 0 ? prevRevenue / prevOrders : 0
+
+  const pct = (cur: number, prev: number) =>
+    prev > 0 ? ((cur - prev) / prev) * 100 : cur > 0 ? 100 : 0
+
   return {
     totalRevenue30d,
     totalOrders30d,
     totalCustomers,
     logoTekstCustomers,
-    newRisingProducts: 0, // filled by caller
+    newRisingProducts: 0,
     underperformingProducts: 0,
     avgOrderValue30d,
+    revenueTrend: pct(totalRevenue30d, prevRevenue),
+    ordersTrend: pct(totalOrders30d, prevOrders),
+    avgOrderTrend: pct(avgOrderValue30d, prevAvg),
+  }
+}
+
+export interface CustomerAnalytics {
+  totalCustomers: number
+  repeatCustomers: number
+  repeatRate: number
+  avgLTV: number
+  topCustomers: Array<{
+    id: number
+    name: string
+    email: string
+    totalRevenue: number
+    orderCount: number
+    lastOrder: Date | null
+  }>
+  revenueByMonth: Array<{ month: string; newCustomers: number; returning: number }>
+}
+
+export async function getCustomerAnalytics(): Promise<CustomerAnalytics> {
+  const customers = await prisma.customer.findMany({
+    include: {
+      orders: {
+        where: { status: { notIn: ['cancelled', 'refunded'] } },
+        select: { total: true, date: true },
+        orderBy: { date: 'desc' },
+      },
+    },
+  })
+
+  const withOrders = customers.filter((c) => c.orders.length > 0)
+  const repeatCustomers = withOrders.filter((c) => c.orders.length > 1).length
+  const totalRevenue = withOrders.reduce((s, c) => s + c.orders.reduce((ss, o) => ss + o.total, 0), 0)
+  const avgLTV = withOrders.length > 0 ? totalRevenue / withOrders.length : 0
+
+  const topCustomers = withOrders
+    .map((c) => ({
+      id: c.id,
+      name: `${c.firstName} ${c.lastName}`.trim(),
+      email: c.email,
+      totalRevenue: c.orders.reduce((s, o) => s + o.total, 0),
+      orderCount: c.orders.length,
+      lastOrder: c.orders[0]?.date ?? null,
+    }))
+    .sort((a, b) => b.totalRevenue - a.totalRevenue)
+    .slice(0, 20)
+
+  return {
+    totalCustomers: customers.length,
+    repeatCustomers,
+    repeatRate: withOrders.length > 0 ? (repeatCustomers / withOrders.length) * 100 : 0,
+    avgLTV,
+    topCustomers,
+    revenueByMonth: [],
   }
 }
 
