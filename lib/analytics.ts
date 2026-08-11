@@ -317,10 +317,11 @@ export async function getOverviewStats(period = '30d'): Promise<OverviewStats> {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface CustomerAnalytics {
-  totalCustomers: number
-  repeatCustomers: number
-  repeatRate: number
-  avgLTV: number
+  totalCustomers: number        // all-time total
+  activeCustomers: number       // had order(s) in selected period
+  repeatCustomers: number       // 2+ orders in selected period
+  repeatRate: number            // repeatCustomers / activeCustomers
+  avgOrderValue: number         // avg revenue per active customer in period
   topCustomers: Array<{
     id: number
     name: string
@@ -335,42 +336,45 @@ export interface CustomerAnalytics {
 export async function getCustomerAnalytics(period = '30d'): Promise<CustomerAnalytics> {
   const { since } = periodToRange(period)
 
-  const customers = await prisma.customer.findMany({
-    include: {
-      orders: {
-        where: { status: { notIn: ['cancelled', 'refunded'] } },
-        select: { total: true, date: true },
-        orderBy: { date: 'desc' },
+  const [totalCustomers, customers] = await Promise.all([
+    prisma.customer.count(),
+    prisma.customer.findMany({
+      include: {
+        orders: {
+          where: {
+            status: { notIn: ['cancelled', 'refunded'] },
+            date: { gte: since },
+          },
+          select: { total: true, date: true },
+          orderBy: { date: 'desc' },
+        },
       },
-    },
-  })
+    }),
+  ])
 
   const withOrders = customers.filter((c) => c.orders.length > 0)
   const repeatCustomers = withOrders.filter((c) => c.orders.length > 1).length
   const totalRevenue = withOrders.reduce((s, c) => s + c.orders.reduce((ss, o) => ss + o.total, 0), 0)
-  const avgLTV = withOrders.length > 0 ? totalRevenue / withOrders.length : 0
+  const avgOrderValue = withOrders.length > 0 ? totalRevenue / withOrders.length : 0
 
   const topCustomers = withOrders
-    .map((c) => {
-      const pOrders = c.orders.filter(o => o.date >= since)
-      return {
-        id: c.id,
-        name: `${c.firstName} ${c.lastName}`.trim(),
-        email: c.email,
-        totalRevenue: pOrders.reduce((s, o) => s + o.total, 0),
-        orderCount: pOrders.length,
-        lastOrder: c.orders[0]?.date ?? null,
-      }
-    })
-    .filter(c => c.orderCount > 0)
+    .map((c) => ({
+      id: c.id,
+      name: `${c.firstName} ${c.lastName}`.trim(),
+      email: c.email,
+      totalRevenue: c.orders.reduce((s, o) => s + o.total, 0),
+      orderCount: c.orders.length,
+      lastOrder: c.orders[0]?.date ?? null,
+    }))
     .sort((a, b) => b.totalRevenue - a.totalRevenue)
     .slice(0, 20)
 
   return {
-    totalCustomers: customers.length,
+    totalCustomers,
+    activeCustomers: withOrders.length,
     repeatCustomers,
     repeatRate: withOrders.length > 0 ? (repeatCustomers / withOrders.length) * 100 : 0,
-    avgLTV,
+    avgOrderValue,
     topCustomers,
     revenueByMonth: [],
   }

@@ -91,18 +91,19 @@ export default async function CustomersPage({
       {analytics && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <div className="bg-white rounded-xl border border-slate-200 p-5">
-            <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-3">Totaal klanten</p>
-            <p className="text-2xl font-bold text-slate-900">{analytics.totalCustomers.toLocaleString('nl-NL')}</p>
+            <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-3">Actieve klanten</p>
+            <p className="text-2xl font-bold text-slate-900">{analytics.activeCustomers.toLocaleString('nl-NL')}</p>
+            <p className="text-xs text-slate-400 mt-1">van {analytics.totalCustomers.toLocaleString('nl-NL')} totaal</p>
           </div>
           <div className="bg-white rounded-xl border border-slate-200 p-5">
-            <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-3">Herhalingsaankoop</p>
+            <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-3">Terugkerende kopers</p>
             <p className="text-2xl font-bold text-slate-900">{analytics.repeatRate.toFixed(1)}%</p>
             <p className="text-xs text-slate-400 mt-1">{analytics.repeatCustomers} klanten ≥ 2 orders</p>
           </div>
           <div className="bg-white rounded-xl border border-slate-200 p-5">
-            <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-3">Gem. klantwaarde (LTV)</p>
-            <p className="text-2xl font-bold text-slate-900">{formatCurrency(analytics.avgLTV)}</p>
-            <p className="text-xs text-slate-400 mt-1">Gemiddelde omzet per klant</p>
+            <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-3">Gem. omzet per klant</p>
+            <p className="text-2xl font-bold text-slate-900">{formatCurrency(analytics.avgOrderValue)}</p>
+            <p className="text-xs text-slate-400 mt-1">{periodLabel}</p>
           </div>
           <div className="bg-brand-50 rounded-xl border border-brand-200 p-5">
             <p className="text-xs text-brand-600 uppercase tracking-wide font-medium mb-3">Logo/tekst kopers</p>
