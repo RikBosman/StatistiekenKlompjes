@@ -9,7 +9,8 @@ export interface ProductPerformance {
   sku: string | null
   cogs: number | null
   firstOrderDate: Date | null
-  isNew: boolean
+  createdAt: Date
+  isNew: boolean // true when product.createdAt is within NEW_PRODUCT_WINDOW_DAYS
   status: ProductStatus
   monthlySales: MonthlyData[]
   forecastNextMonth: number
@@ -44,7 +45,7 @@ export async function getProductPerformance(): Promise<ProductPerformance[]> {
   })
 
   return products.map((p) => {
-    const isNew = p.firstOrderDate ? p.firstOrderDate >= newCutoff : false
+    const isNew = p.createdAt >= newCutoff
 
     // Build monthly data for last 6 months
     const monthlySales: MonthlyData[] = []
@@ -108,6 +109,7 @@ export async function getProductPerformance(): Promise<ProductPerformance[]> {
       sku: p.sku,
       cogs: p.cogs,
       firstOrderDate: p.firstOrderDate,
+      createdAt: p.createdAt,
       isNew,
       status,
       monthlySales,
