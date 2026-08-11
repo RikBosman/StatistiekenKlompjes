@@ -83,6 +83,8 @@ export interface ProductPerformance {
   forecastNextMonth: number
   totalUnitsPeriod: number
   totalRevenuePeriod: number
+  grossProfit: number
+  profitMarginPct: number
   // kept for backward compat with existing page code
   totalUnitsLast30: number
   totalRevenueLast30: number
@@ -179,12 +181,26 @@ export async function getProductPerformance(period = '30d'): Promise<ProductPerf
       else status = 'steady'
     }
 
-    // Forecast: weighted average of last 3 months
-    const last3 = monthlySales.slice(-3)
-    const weights = [1, 2, 3]
-    const weightedSum = last3.reduce((s, m, idx) => s + m.units * weights[idx], 0)
-    const weightTotal = weights.slice(0, last3.length).reduce((a, b) => a + b, 0)
-    const forecast = weightTotal > 0 ? weightedSum / weightTotal : 0
+    // Forecast: for new products use daily rate since creation; for established use weighted 3M average
+    const daysSinceCreation = Math.max(1, (now.getTime() - p.createdAt.getTime()) / (1000 * 60 * 60 * 24))
+    const totalUnitsAllData = productItems.reduce((s, i) => s + i.quantity, 0)
+    let forecast: number
+    if (daysSinceCreation < 90) {
+      // New product: daily rate since creation projected to 30 days
+      forecast = (totalUnitsAllData / daysSinceCreation) * 30
+    } else {
+      // Established product: weighted recent 3 months (recent months weighted higher)
+      const last3 = monthlySales.slice(-3)
+      const weights = [1, 2, 3]
+      const weightedSum = last3.reduce((s, m, idx) => s + m.units * weights[idx], 0)
+      const weightTotal = weights.slice(0, last3.length).reduce((a, b) => a + b, 0)
+      forecast = weightTotal > 0 ? weightedSum / weightTotal : 0
+    }
+
+    // Gross profit for the selected period
+    const cogsTotal = (p.cogs ?? 0) * totalUnitsPeriod
+    const grossProfit = totalRevenuePeriod - cogsTotal
+    const profitMarginPct = totalRevenuePeriod > 0 ? (grossProfit / totalRevenuePeriod) * 100 : 0
 
     return {
       id: p.id,
@@ -199,6 +215,8 @@ export async function getProductPerformance(period = '30d'): Promise<ProductPerf
       forecastNextMonth: Math.round(forecast),
       totalUnitsPeriod,
       totalRevenuePeriod,
+      grossProfit,
+      profitMarginPct,
       totalUnitsLast30: totalUnitsPeriod,
       totalRevenueLast30: totalRevenuePeriod,
     }

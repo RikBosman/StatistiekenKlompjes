@@ -1,11 +1,14 @@
 import { prisma } from '@/lib/db'
 import { formatDate } from '@/lib/utils'
 import Link from 'next/link'
+import { subMonths } from 'date-fns'
 
 export const revalidate = 0
 
 export default async function EmailPage() {
-  const [campaigns, templates, lists] = await Promise.all([
+  const cutoff3m = subMonths(new Date(), 3)
+
+  const [campaigns, templates, lists, logoBuyerCount, inactiveCount, repeatGroups] = await Promise.all([
     prisma.campaign.findMany({
       orderBy: { createdAt: 'desc' },
       include: {
@@ -19,12 +22,79 @@ export default async function EmailPage() {
       orderBy: { createdAt: 'desc' },
       include: { _count: { select: { members: true } } },
     }),
+    prisma.customer.count({ where: { tags: { contains: 'logo_buyer' } } }),
+    prisma.customer.count({
+      where: {
+        AND: [
+          { orders: { some: { status: { notIn: ['cancelled', 'refunded'] } } } },
+          { orders: { none: { date: { gte: cutoff3m }, status: { notIn: ['cancelled', 'refunded'] } } } },
+        ],
+      },
+    }),
+    prisma.order.groupBy({
+      by: ['customerId'],
+      where: { customerId: { not: null }, status: { notIn: ['cancelled', 'refunded'] } },
+      _count: { id: true },
+      having: { id: { _count: { gte: 2 } } },
+    }),
   ])
+
+  const repeatBuyerCount = repeatGroups.length
+
+  // Top customers: all with any valid order revenue
+  const topCustomerCount = await prisma.customer.count({
+    where: { orders: { some: { status: { notIn: ['cancelled', 'refunded'] }, total: { gt: 0 } } } },
+  })
+
+  const smartLists = [
+    {
+      key: 'logo_buyer',
+      label: 'Logo / tekst kopers',
+      description: 'Klanten die ooit een logo- of tekstproduct hebben besteld',
+      count: logoBuyerCount,
+      color: 'blue',
+    },
+    {
+      key: 'repeat_buyer',
+      label: 'Vaste klanten',
+      description: 'Klanten met 2 of meer bestellingen',
+      count: repeatBuyerCount,
+      color: 'green',
+    },
+    {
+      key: 'inactive_3m',
+      label: 'Slapende klanten',
+      description: 'Klanten die meer dan 3 maanden niet hebben besteld',
+      count: inactiveCount,
+      color: 'amber',
+    },
+    {
+      key: 'top_customers',
+      label: 'Top klanten',
+      description: 'Top 500 klanten op omzet',
+      count: Math.min(topCustomerCount, 500),
+      color: 'purple',
+    },
+  ]
+
+  const colorMap: Record<string, string> = {
+    blue: 'bg-blue-50 border-blue-200 text-blue-700',
+    green: 'bg-green-50 border-green-200 text-green-700',
+    amber: 'bg-amber-50 border-amber-200 text-amber-700',
+    purple: 'bg-purple-50 border-purple-200 text-purple-700',
+  }
+  const countColorMap: Record<string, string> = {
+    blue: 'text-blue-900',
+    green: 'text-green-900',
+    amber: 'text-amber-900',
+    purple: 'text-purple-900',
+  }
 
   const segmentLabels: Record<string, string> = {
     logo_buyer: 'Logo/tekst kopers',
     inactive_3m: 'Slapende klanten (3m+)',
     top_customers: 'Top klanten',
+    repeat_buyer: 'Vaste klanten',
     list: 'Handmatige lijst',
   }
 
@@ -47,6 +117,24 @@ export default async function EmailPage() {
         >
           + Nieuwe campagne
         </Link>
+      </div>
+
+      {/* Smart lists */}
+      <div className="mb-8">
+        <h3 className="font-semibold text-slate-900 mb-3">Automatische klantenlijsten</h3>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {smartLists.map((seg) => (
+            <Link
+              key={seg.key}
+              href={`/dashboard/email/segments/${seg.key}`}
+              className={`rounded-xl border p-5 hover:shadow-sm transition-shadow ${colorMap[seg.color]}`}
+            >
+              <p className={`text-3xl font-bold mb-1 ${countColorMap[seg.color]}`}>{seg.count}</p>
+              <p className="font-semibold text-sm mb-1">{seg.label}</p>
+              <p className="text-xs opacity-70">{seg.description}</p>
+            </Link>
+          ))}
+        </div>
       </div>
 
       {/* Campagnes */}
@@ -105,9 +193,8 @@ export default async function EmailPage() {
         )}
       </div>
 
-      {/* Templates + Lists side by side */}
+      {/* Templates + Manual lists */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Templates */}
         <div className="bg-white rounded-xl border border-slate-200">
           <div className="p-5 border-b border-slate-100 flex items-center justify-between">
             <h3 className="font-semibold text-slate-900">E-mailsjablonen</h3>
@@ -132,7 +219,6 @@ export default async function EmailPage() {
           )}
         </div>
 
-        {/* Manual lists */}
         <div className="bg-white rounded-xl border border-slate-200">
           <div className="p-5 border-b border-slate-100 flex items-center justify-between">
             <h3 className="font-semibold text-slate-900">Handmatige lijsten</h3>

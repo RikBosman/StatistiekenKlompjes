@@ -1,7 +1,7 @@
 import { prisma } from './db'
 import { subMonths } from 'date-fns'
 
-export type SegmentType = 'logo_buyer' | 'inactive_3m' | 'top_customers' | 'list'
+export type SegmentType = 'logo_buyer' | 'inactive_3m' | 'top_customers' | 'repeat_buyer' | 'list'
 
 export interface SegmentCustomer {
   id: number
@@ -79,6 +79,29 @@ export async function getSegmentCustomers(
       .slice(0, 500)
   }
 
+  if (segmentType === 'repeat_buyer') {
+    const customers = await prisma.customer.findMany({
+      include: {
+        orders: {
+          where: { status: { notIn: ['cancelled', 'refunded'] } },
+          select: { total: true, date: true },
+        },
+      },
+    })
+    return customers
+      .filter((c) => c.orders.length >= 2)
+      .map((c) => ({
+        id: c.id,
+        email: c.email,
+        firstName: c.firstName,
+        lastName: c.lastName,
+        orderCount: c.orders.length,
+        totalRevenue: c.orders.reduce((s, o) => s + o.total, 0),
+        lastOrderDate: c.orders.sort((a, b) => b.date.getTime() - a.date.getTime())[0]?.date,
+      }))
+      .sort((a, b) => (b.orderCount ?? 0) - (a.orderCount ?? 0))
+  }
+
   if (segmentType === 'list' && listId) {
     const members = await prisma.customerListMember.findMany({
       where: { listId },
@@ -98,8 +121,9 @@ export async function getSegmentCustomers(
 export function segmentLabel(type: SegmentType): string {
   const labels: Record<SegmentType, string> = {
     logo_buyer: 'Logo / tekst kopers',
-    inactive_3m: 'Niet gekocht (3+ maanden)',
+    inactive_3m: 'Slapende klanten (3m+)',
     top_customers: 'Top klanten (op omzet)',
+    repeat_buyer: 'Vaste klanten (2+ bestellingen)',
     list: 'Handmatige lijst',
   }
   return labels[type]

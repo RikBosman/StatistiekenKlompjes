@@ -88,6 +88,7 @@ export default async function ProductsPage({
 
   const totalRevenue  = products.reduce((s, p) => s + p.totalRevenuePeriod, 0)
   const totalUnits    = products.reduce((s, p) => s + p.totalUnitsPeriod, 0)
+  const totalProfit   = products.reduce((s, p) => s + p.grossProfit, 0)
   const activeCount   = products.filter((p) => p.totalUnitsPeriod > 0).length
 
   const filterItems = [
@@ -109,10 +110,14 @@ export default async function ProductsPage({
       </div>
 
       {/* KPI row */}
-      <div className="grid grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-4 gap-4 mb-8">
         <div className="bg-white rounded-xl border border-slate-200 p-5">
           <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-2">Omzet ({period})</p>
           <p className="text-2xl font-bold text-slate-900">{formatCurrency(totalRevenue)}</p>
+        </div>
+        <div className="bg-white rounded-xl border border-slate-200 p-5">
+          <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-2">Bruto winst ({period})</p>
+          <p className={`text-2xl font-bold ${totalProfit >= 0 ? 'text-green-700' : 'text-red-700'}`}>{formatCurrency(totalProfit)}</p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-5">
           <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-2">Verkopen ({period})</p>
@@ -165,6 +170,8 @@ export default async function ProductsPage({
                 <th className="text-right px-4 py-3 font-medium text-slate-500">Verkopen ({period})</th>
                 <th className="text-right px-4 py-3 font-medium text-slate-500">Omzet ({period})</th>
                 <th className="text-center px-4 py-3 font-medium text-slate-500">Trend (6m)</th>
+                <th className="text-right px-4 py-3 font-medium text-slate-500">Bruto winst</th>
+                <th className="text-right px-4 py-3 font-medium text-slate-500">Marge</th>
                 <th className="text-right px-4 py-3 font-medium text-slate-500">Forecast (volgend mnd)</th>
                 <th className="text-right px-4 py-3 font-medium text-slate-500">Inkoop/stuk</th>
               </tr>
@@ -172,7 +179,7 @@ export default async function ProductsPage({
             <tbody>
               {sorted.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-8 text-center text-slate-400 text-sm">
+                  <td colSpan={9} className="px-6 py-8 text-center text-slate-400 text-sm">
                     Geen producten gevonden voor deze filter.
                   </td>
                 </tr>
@@ -198,6 +205,20 @@ export default async function ProductsPage({
                         : '#f59e0b'
                       }
                     />
+                  </td>
+                  <td className="px-4 py-3 text-right tabular-nums">
+                    {p.cogs != null && p.totalUnitsPeriod > 0 ? (
+                      <span className={p.grossProfit >= 0 ? 'text-green-700 font-medium' : 'text-red-700 font-medium'}>
+                        {formatCurrency(p.grossProfit)}
+                      </span>
+                    ) : <span className="text-slate-300">—</span>}
+                  </td>
+                  <td className="px-4 py-3 text-right tabular-nums text-sm">
+                    {p.cogs != null && p.totalRevenuePeriod > 0 ? (
+                      <span className={p.profitMarginPct >= 0 ? 'text-green-700' : 'text-red-700'}>
+                        {p.profitMarginPct.toFixed(0)}%
+                      </span>
+                    ) : <span className="text-slate-300">—</span>}
                   </td>
                   <td className="px-4 py-3 text-right font-semibold text-brand-700 tabular-nums">
                     {p.forecastNextMonth > 0 ? `${p.forecastNextMonth} st.` : '—'}
