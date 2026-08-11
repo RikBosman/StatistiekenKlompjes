@@ -30,6 +30,10 @@ export interface WCOrder {
     total: string
     sku: string
   }>
+  shipping_lines: Array<{
+    method_id: string
+    method_title: string
+  }>
 }
 
 export interface WCCustomer {
