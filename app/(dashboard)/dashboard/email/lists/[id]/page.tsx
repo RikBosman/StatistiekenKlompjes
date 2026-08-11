@@ -11,7 +11,6 @@ export default async function ListDetailPage({ params }: { params: Promise<{ id:
     include: {
       members: {
         include: { customer: true },
-        orderBy: { createdAt: 'desc' },
       },
     },
   })
