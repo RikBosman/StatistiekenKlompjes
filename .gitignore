@@ -49,5 +49,6 @@ prisma/migrations/
 .vscode/
 *.sublime-project
 *.sublime-workspace
+.editorconfig
 *.swp
 *.swo
