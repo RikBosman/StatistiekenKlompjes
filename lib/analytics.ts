@@ -5,6 +5,8 @@ export type ProductStatus = 'new_rising' | 'steady' | 'declining' | 'new_slow' |
 
 const LETTERBOX_COST = parseFloat(process.env.LETTERBOX_SHIPPING_COST ?? '4.20')
 const PARCEL_COST = parseFloat(process.env.PARCEL_SHIPPING_COST ?? '6.85')
+// Default rate for orders without a known shipping method (assume cheapest = letterbox)
+const DEFAULT_SHIPPING_COST = parseFloat(process.env.DEFAULT_SHIPPING_COST ?? process.env.LETTERBOX_SHIPPING_COST ?? '4.20')
 
 export function periodToRange(period = '30d'): { since: Date; months: number; label: string } {
   const now = new Date()
@@ -18,8 +20,8 @@ export function periodToRange(period = '30d'): { since: Date; months: number; la
   }
 }
 
-function calcActualShipping(method: string | null | undefined, shippingTotal: number): number {
-  if (!method) return shippingTotal // fallback: use customer-paid amount if method unknown
+function calcActualShipping(method: string | null | undefined): number {
+  if (!method) return DEFAULT_SHIPPING_COST // use default rate when method unknown
   const m = method.toLowerCase()
   return m.includes('brievenbus') ? LETTERBOX_COST : PARCEL_COST
 }
@@ -257,7 +259,7 @@ export async function getOverviewStats(period = '30d'): Promise<OverviewStats> {
   let cogs = 0
   let actualShipping = 0
   for (const order of orders) {
-    actualShipping += calcActualShipping(order.shippingMethod, order.shippingTotal)
+    actualShipping += calcActualShipping(order.shippingMethod)
     for (const item of order.lineItems) {
       cogs += lookupCogs(cogsById, cogsBySku, item.productId, item.sku) * item.quantity
     }
@@ -405,7 +407,7 @@ export async function getMarginData(period = '6m'): Promise<MarginData[]> {
     let cogs = 0
     let actualShipping = 0
     for (const order of orders) {
-      actualShipping += calcActualShipping(order.shippingMethod, order.shippingTotal)
+      actualShipping += calcActualShipping(order.shippingMethod)
       for (const item of order.lineItems) {
         cogs += lookupCogs(cogsById, cogsBySku, item.productId, item.sku) * item.quantity
       }
