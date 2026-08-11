@@ -97,8 +97,6 @@ export async function fetchOrders(afterDate?: string): Promise<WCOrder[]> {
 export async function fetchProductCOGS(productId: number): Promise<number | null> {
   const client = createWooCommerceClient()
   const response = await client.get<WCProduct>(`/products/${productId}`)
-  const cogsMeta = response.data.meta_data.find(
-    (m) => m.key === '_wc_cog_cost' || m.key === '_cogs_cost' || m.key === 'cost_of_goods'
-  )
+  const cogsMeta = response.data.meta_data.find((m) => m.key === '_wc_cog_cost')
   return cogsMeta ? parseFloat(cogsMeta.value) || null : null
 }

@@ -6,9 +6,7 @@ export async function syncProducts(): Promise<{ count: number; error?: string }>
     const products = await fetchProducts()
 
     for (const p of products) {
-      const cogsMeta = p.meta_data?.find(
-        (m) => m.key === '_wc_cog_cost' || m.key === '_cogs_cost' || m.key === 'cost_of_goods'
-      )
+      const cogsMeta = p.meta_data?.find((m) => m.key === '_wc_cog_cost')
       const cogs = cogsMeta ? parseFloat(cogsMeta.value) || null : null
 
       await prisma.product.upsert({
