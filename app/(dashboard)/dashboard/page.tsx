@@ -4,10 +4,17 @@ import { formatCurrency } from '@/lib/utils'
 import StatCard from '@/components/StatCard'
 import RevenueChart from '@/components/RevenueChart'
 import SyncStatus from '@/components/SyncStatus'
+import PeriodPicker from '@/components/PeriodPicker'
 
 export const revalidate = 300
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: { period?: string }
+}) {
+  const period = searchParams.period ?? '30d'
+
   let stats = null
   let marginData = null
   let syncLogs = null
@@ -15,8 +22,8 @@ export default async function DashboardPage() {
 
   try {
     ;[stats, marginData, syncLogs] = await Promise.all([
-      getOverviewStats(),
-      getMarginData(6),
+      getOverviewStats(period),
+      getMarginData(period === '7d' || period === '30d' ? '6m' : period),
       prisma.syncLog.findMany({ orderBy: { createdAt: 'desc' }, take: 5 }),
     ])
     dbConnected = true
@@ -40,43 +47,44 @@ export default async function DashboardPage() {
     )
   }
 
-  const lastMonth = marginData && marginData.length > 0 ? marginData[marginData.length - 1] : null
-
   return (
     <div className="p-8">
-      <div className="mb-8">
-        <h2 className="text-2xl font-bold text-slate-900">Overzicht</h2>
-        <p className="text-slate-500 text-sm mt-1">Laatste 30 dagen — vergelijking met vorige periode</p>
+      <div className="mb-8 flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-900">Overzicht</h2>
+          <p className="text-slate-500 text-sm mt-1">{stats!.periodLabel} — vergelijking met vorige periode</p>
+        </div>
+        <PeriodPicker active={period} />
       </div>
 
-      {/* KPI row */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      {/* KPI row 1: revenue metrics */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
         <StatCard
-          label="Omzet (30d)"
-          value={formatCurrency(stats!.totalRevenue30d)}
-          sub={`${stats!.totalOrders30d} bestellingen`}
+          label={`Omzet (${period})`}
+          value={formatCurrency(stats!.totalRevenue)}
+          sub={`${stats!.totalOrders} bestellingen`}
           trend={stats!.revenueTrend}
         />
         <StatCard
-          label="Bestellingen (30d)"
-          value={String(stats!.totalOrders30d)}
-          sub="t.o.v. vorige 30 dagen"
+          label={`Bestellingen (${period})`}
+          value={String(stats!.totalOrders)}
+          sub="t.o.v. vorige periode"
           trend={stats!.ordersTrend}
         />
         <StatCard
           label="Gem. orderwaarde"
-          value={formatCurrency(stats!.avgOrderValue30d)}
+          value={formatCurrency(stats!.avgOrderValue)}
           trend={stats!.avgOrderTrend}
         />
         <StatCard
-          label="Marge (vorige maand)"
-          value={lastMonth ? `${lastMonth.grossMarginPct.toFixed(1)}%` : '—'}
-          sub={lastMonth ? formatCurrency(lastMonth.grossMargin) : undefined}
-          highlight={!!lastMonth && lastMonth.grossMarginPct > 30}
+          label="Bruto marge"
+          value={`${stats!.grossMarginPct.toFixed(1)}%`}
+          sub={formatCurrency(stats!.grossMargin)}
+          highlight={stats!.grossMarginPct > 30}
         />
       </div>
 
-      {/* Second row */}
+      {/* KPI row 2: cost breakdown */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <div className="bg-white rounded-xl border border-slate-200 p-5">
           <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-3">Klanten totaal</p>
@@ -84,31 +92,27 @@ export default async function DashboardPage() {
           <p className="text-xs text-slate-400 mt-1">{stats!.logoTekstCustomers} logo/tekst kopers</p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-5">
-          <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-3">Inkoop (30d)</p>
-          <p className="text-2xl font-bold text-slate-900">
-            {lastMonth ? formatCurrency(lastMonth.cogs) : '—'}
-          </p>
-          <p className="text-xs text-slate-400 mt-1">Inkoopkosten afgelopen maand</p>
+          <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-3">Inkoopkosten</p>
+          <p className="text-2xl font-bold text-slate-900">{formatCurrency(stats!.cogs)}</p>
+          <p className="text-xs text-slate-400 mt-1">Product COGS</p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-5">
-          <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-3">Verzending (30d)</p>
-          <p className="text-2xl font-bold text-slate-900">
-            {lastMonth ? formatCurrency(lastMonth.shippingCharged) : '—'}
-          </p>
-          <p className="text-xs text-slate-400 mt-1">Wat klanten betaalden</p>
-        </div>
-        <div className="bg-white rounded-xl border border-slate-200 p-5">
-          <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-3">Bruto marge (30d)</p>
-          <p className="text-2xl font-bold text-slate-900">
-            {lastMonth ? formatCurrency(lastMonth.grossMargin) : '—'}
-          </p>
+          <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-3">Verzendkosten (werkelijk)</p>
+          <p className="text-2xl font-bold text-slate-900">{formatCurrency(stats!.actualShipping)}</p>
           <p className="text-xs text-slate-400 mt-1">
-            {lastMonth ? `${lastMonth.grossMarginPct.toFixed(1)}% van omzet` : ''}
+            Klant betaalde {formatCurrency(stats!.shippingCharged)}
           </p>
+        </div>
+        <div className="bg-white rounded-xl border border-slate-200 p-5">
+          <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-3">Bruto marge (€)</p>
+          <p className={`text-2xl font-bold ${stats!.grossMargin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+            {formatCurrency(stats!.grossMargin)}
+          </p>
+          <p className="text-xs text-slate-400 mt-1">Omzet − inkoop − verzending</p>
         </div>
       </div>
 
-      {/* Revenue chart */}
+      {/* Revenue/margin chart */}
       {marginData && marginData.length > 0 && (
         <div className="bg-white rounded-xl border border-slate-200 p-6 mb-6">
           <h3 className="text-slate-800 font-semibold mb-1">Omzet vs Bruto marge</h3>

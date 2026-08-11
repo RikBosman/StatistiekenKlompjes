@@ -24,15 +24,16 @@ model Product {
 }
 
 model Order {
-  id            Int      @id
-  date          DateTime
-  customerId    Int?
-  customerEmail String
-  customerName  String
-  total         Float
-  shippingTotal Float
-  status        String
-  syncedAt      DateTime @default(now())
+  id             Int      @id
+  date           DateTime
+  customerId     Int?
+  customerEmail  String
+  customerName   String
+  total          Float
+  shippingTotal  Float
+  shippingMethod String?  // WooCommerce shipping method title (e.g. "Brievenbuspakket")
+  status         String
+  syncedAt       DateTime @default(now())
 
   lineItems OrderItem[]
   customer  Customer?   @relation(fields: [customerId], references: [id])

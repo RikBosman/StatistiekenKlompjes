@@ -1,31 +1,39 @@
-import { getProductPerformance, type ProductStatus } from '@/lib/analytics'
+import { getProductPerformance, periodToRange, type ProductStatus } from '@/lib/analytics'
 import { formatCurrency } from '@/lib/utils'
 import TrendSparkline from '@/components/TrendSparkline'
+import PeriodPicker from '@/components/PeriodPicker'
 
 export const revalidate = 300
 
 const statusLabel: Record<ProductStatus, string> = {
-  new_rising: 'Nieuw & stijgend',
-  steady: 'Stabiel',
-  declining: 'Dalend',
-  new_slow: 'Nieuw & traag',
-  underperforming: 'Onderpresterend',
+  new_rising:     'Nieuw & stijgend',
+  steady:         'Stabiel',
+  declining:      'Dalend',
+  new_slow:       'Nieuw & traag',
+  underperforming:'Onderpresterend',
 }
 
 const statusColor: Record<ProductStatus, string> = {
-  new_rising: 'bg-green-100 text-green-700',
-  steady: 'bg-blue-100 text-blue-700',
-  declining: 'bg-red-100 text-red-700',
-  new_slow: 'bg-amber-100 text-amber-700',
-  underperforming: 'bg-slate-100 text-slate-500',
+  new_rising:     'bg-green-100 text-green-700',
+  steady:         'bg-blue-100 text-blue-700',
+  declining:      'bg-red-100 text-red-700',
+  new_slow:       'bg-amber-100 text-amber-700',
+  underperforming:'bg-slate-100 text-slate-500',
 }
 
-export default async function ProductsPage({ searchParams }: { searchParams: { filter?: string; q?: string } }) {
+export default async function ProductsPage({
+  searchParams,
+}: {
+  searchParams: { filter?: string; q?: string; period?: string }
+}) {
+  const period = searchParams.period ?? '30d'
+  const { label: periodLabel } = periodToRange(period)
+
   let products = null
   let error = null
 
   try {
-    products = await getProductPerformance()
+    products = await getProductPerformance(period)
   } catch (err) {
     error = err instanceof Error ? err.message : 'Onbekende fout'
   }
@@ -53,6 +61,12 @@ export default async function ProductsPage({ searchParams }: { searchParams: { f
   const activeFilter = searchParams.filter ?? 'all'
   const query = (searchParams.q ?? '').toLowerCase()
 
+  // Extra search params to preserve when switching period
+  const extraParams = [
+    activeFilter !== 'all' ? `&filter=${activeFilter}` : '',
+    query ? `&q=${query}` : '',
+  ].join('')
+
   const filtered = products.filter((p) => {
     const matchesFilter = activeFilter === 'all' || p.status === activeFilter
     const matchesQuery = !query || p.name.toLowerCase().includes(query) || (p.sku ?? '').toLowerCase().includes(query)
@@ -64,7 +78,7 @@ export default async function ProductsPage({ searchParams }: { searchParams: { f
       new_rising: 0, steady: 1, declining: 2, new_slow: 3, underperforming: 4,
     }
     if (order[a.status] !== order[b.status]) return order[a.status] - order[b.status]
-    return b.totalRevenueLast30 - a.totalRevenueLast30
+    return b.totalRevenuePeriod - a.totalRevenuePeriod
   })
 
   const counts = products.reduce((acc, p) => {
@@ -72,38 +86,43 @@ export default async function ProductsPage({ searchParams }: { searchParams: { f
     return acc
   }, {} as Record<string, number>)
 
-  const totalRevenue30d = products.reduce((s, p) => s + p.totalRevenueLast30, 0)
-  const totalUnits30d = products.reduce((s, p) => s + p.totalUnitsLast30, 0)
-  const activeProducts = products.filter((p) => p.totalUnitsLast30 > 0).length
+  const totalRevenue  = products.reduce((s, p) => s + p.totalRevenuePeriod, 0)
+  const totalUnits    = products.reduce((s, p) => s + p.totalUnitsPeriod, 0)
+  const activeCount   = products.filter((p) => p.totalUnitsPeriod > 0).length
 
   const filterItems = [
-    { key: 'all', label: `Alle (${products.length})` },
-    { key: 'new_rising', label: `Stijgend (${counts['new_rising'] ?? 0})` },
-    { key: 'steady', label: `Stabiel (${counts['steady'] ?? 0})` },
-    { key: 'declining', label: `Dalend (${counts['declining'] ?? 0})` },
+    { key: 'all',             label: `Alle (${products.length})` },
+    { key: 'new_rising',      label: `Stijgend (${counts['new_rising'] ?? 0})` },
+    { key: 'steady',          label: `Stabiel (${counts['steady'] ?? 0})` },
+    { key: 'declining',       label: `Dalend (${counts['declining'] ?? 0})` },
     { key: 'underperforming', label: `Onderpresterend (${counts['underperforming'] ?? 0})` },
   ]
 
   return (
     <div className="p-8">
-      <div className="mb-8">
-        <h2 className="text-2xl font-bold text-slate-900">Producten</h2>
-        <p className="text-slate-500 text-sm mt-1">Performance & forecast — laatste 6 maanden</p>
+      <div className="mb-8 flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-900">Producten</h2>
+          <p className="text-slate-500 text-sm mt-1">{periodLabel} — trend op basis van 6 maanden</p>
+        </div>
+        <PeriodPicker active={period} extraParams={extraParams} />
       </div>
 
       {/* KPI row */}
       <div className="grid grid-cols-3 gap-4 mb-8">
         <div className="bg-white rounded-xl border border-slate-200 p-5">
-          <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-2">Omzet (30d)</p>
-          <p className="text-2xl font-bold text-slate-900">{formatCurrency(totalRevenue30d)}</p>
+          <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-2">Omzet ({period})</p>
+          <p className="text-2xl font-bold text-slate-900">{formatCurrency(totalRevenue)}</p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-5">
-          <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-2">Verkopen (30d)</p>
-          <p className="text-2xl font-bold text-slate-900">{totalUnits30d} stuks</p>
+          <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-2">Verkopen ({period})</p>
+          <p className="text-2xl font-bold text-slate-900">{totalUnits} stuks</p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-5">
           <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-2">Actieve producten</p>
-          <p className="text-2xl font-bold text-slate-900">{activeProducts} <span className="text-sm font-normal text-slate-400">van {products.length}</span></p>
+          <p className="text-2xl font-bold text-slate-900">
+            {activeCount} <span className="text-sm font-normal text-slate-400">van {products.length}</span>
+          </p>
         </div>
       </div>
 
@@ -123,7 +142,7 @@ export default async function ProductsPage({ searchParams }: { searchParams: { f
             {filterItems.map((f) => (
               <a
                 key={f.key}
-                href={`?filter=${f.key}${query ? `&q=${query}` : ''}`}
+                href={`?filter=${f.key}&period=${period}${query ? `&q=${query}` : ''}`}
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                   activeFilter === f.key
                     ? 'bg-brand-600 text-white'
@@ -143,11 +162,11 @@ export default async function ProductsPage({ searchParams }: { searchParams: { f
               <tr className="border-b border-slate-100 bg-slate-50">
                 <th className="text-left px-6 py-3 font-medium text-slate-500">Product</th>
                 <th className="text-left px-4 py-3 font-medium text-slate-500">Status</th>
-                <th className="text-right px-4 py-3 font-medium text-slate-500">Verkopen 30d</th>
-                <th className="text-right px-4 py-3 font-medium text-slate-500">Omzet 30d</th>
+                <th className="text-right px-4 py-3 font-medium text-slate-500">Verkopen ({period})</th>
+                <th className="text-right px-4 py-3 font-medium text-slate-500">Omzet ({period})</th>
                 <th className="text-center px-4 py-3 font-medium text-slate-500">Trend (6m)</th>
-                <th className="text-right px-4 py-3 font-medium text-slate-500">Forecast</th>
-                <th className="text-right px-4 py-3 font-medium text-slate-500">Inkoop</th>
+                <th className="text-right px-4 py-3 font-medium text-slate-500">Forecast (volgend mnd)</th>
+                <th className="text-right px-4 py-3 font-medium text-slate-500">Inkoop/stuk</th>
               </tr>
             </thead>
             <tbody>
@@ -168,8 +187,8 @@ export default async function ProductsPage({ searchParams }: { searchParams: { f
                       {statusLabel[p.status]}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-right text-slate-700 tabular-nums">{p.totalUnitsLast30}</td>
-                  <td className="px-4 py-3 text-right text-slate-700 tabular-nums font-medium">{formatCurrency(p.totalRevenueLast30)}</td>
+                  <td className="px-4 py-3 text-right text-slate-700 tabular-nums">{p.totalUnitsPeriod}</td>
+                  <td className="px-4 py-3 text-right text-slate-700 tabular-nums font-medium">{formatCurrency(p.totalRevenuePeriod)}</td>
                   <td className="px-4 py-3 flex justify-center">
                     <TrendSparkline
                       data={p.monthlySales}

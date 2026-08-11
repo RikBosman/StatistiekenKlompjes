@@ -1,17 +1,25 @@
 import { prisma } from '@/lib/db'
-import { getCustomerAnalytics } from '@/lib/analytics'
+import { getCustomerAnalytics, periodToRange } from '@/lib/analytics'
 import { formatCurrency, formatDate } from '@/lib/utils'
+import PeriodPicker from '@/components/PeriodPicker'
 
 export const revalidate = 300
 
-export default async function CustomersPage() {
+export default async function CustomersPage({
+  searchParams,
+}: {
+  searchParams: { period?: string }
+}) {
+  const period = searchParams.period ?? '30d'
+  const { label: periodLabel } = periodToRange(period)
+
   let analytics = null
   let logoCustomers = null
   let error = null
 
   try {
     ;[analytics, logoCustomers] = await Promise.all([
-      getCustomerAnalytics(),
+      getCustomerAnalytics(period),
       prisma.customer.findMany({
         where: { tags: { contains: 'logo_buyer' } },
         include: {
@@ -71,9 +79,12 @@ export default async function CustomersPage() {
 
   return (
     <div className="p-8">
-      <div className="mb-8">
-        <h2 className="text-2xl font-bold text-slate-900">Klanten</h2>
-        <p className="text-slate-500 text-sm mt-1">Segmentatie, analytics en logo/tekst kopers</p>
+      <div className="mb-8 flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-900">Klanten</h2>
+          <p className="text-slate-500 text-sm mt-1">{periodLabel} — top klanten en segmentatie</p>
+        </div>
+        <PeriodPicker active={period} />
       </div>
 
       {/* KPI row */}
@@ -106,6 +117,7 @@ export default async function CustomersPage() {
         <div className="bg-white rounded-xl border border-slate-200 mb-8">
           <div className="p-6 border-b border-slate-100">
             <h3 className="font-semibold text-slate-900">Top 20 klanten op omzet</h3>
+            <p className="text-slate-400 text-sm mt-0.5">{periodLabel}</p>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">

@@ -57,6 +57,11 @@ export async function syncOrders(afterDate?: string, beforeDate?: string): Promi
       }
     }
 
+    // Preload valid product IDs to avoid FK issues with deleted/draft products
+    const existingProductIds = new Set<number>(
+      (await prisma.product.findMany({ select: { id: true } })).map(p => p.id)
+    )
+
     let page = 1
     let totalPages = 1
     let count = 0
@@ -68,6 +73,7 @@ export async function syncOrders(afterDate?: string, beforeDate?: string): Promi
       for (const o of orders) {
         const customerEmail = o.billing?.email || ''
         const customerName = `${o.billing?.first_name || ''} ${o.billing?.last_name || ''}`.trim()
+        const shippingMethod = o.shipping_lines?.[0]?.method_title ?? null
 
         let customer = null
         if (o.customer_id && customerEmail) {
@@ -97,6 +103,7 @@ export async function syncOrders(afterDate?: string, beforeDate?: string): Promi
             customerName,
             total: parseFloat(o.total) || 0,
             shippingTotal: parseFloat(o.shipping_total) || 0,
+            shippingMethod,
             status: o.status,
             syncedAt: new Date(),
           },
@@ -104,16 +111,20 @@ export async function syncOrders(afterDate?: string, beforeDate?: string): Promi
             status: o.status,
             total: parseFloat(o.total) || 0,
             shippingTotal: parseFloat(o.shipping_total) || 0,
+            shippingMethod,
             syncedAt: new Date(),
           },
         })
 
         await prisma.orderItem.deleteMany({ where: { orderId: o.id } })
         for (const item of o.line_items || []) {
+          const productId = item.product_id && existingProductIds.has(item.product_id)
+            ? item.product_id
+            : null
           await prisma.orderItem.create({
             data: {
               orderId: o.id,
-              productId: item.product_id || null,
+              productId,
               name: item.name,
               quantity: item.quantity,
               total: parseFloat(item.total) || 0,
