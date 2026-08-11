@@ -19,10 +19,37 @@ export async function getSegmentCustomers(
 ): Promise<SegmentCustomer[]> {
   if (segmentType === 'logo_buyer') {
     const customers = await prisma.customer.findMany({
-      where: { tags: { contains: 'logo_buyer' } },
-      select: { id: true, email: true, firstName: true, lastName: true },
+      where: {
+        orders: {
+          some: {
+            status: { notIn: ['cancelled', 'refunded'] },
+            lineItems: {
+              some: {
+                OR: [
+                  { name: { contains: 'logo' } },
+                  { name: { contains: 'tekst' } },
+                ],
+              },
+            },
+          },
+        },
+      },
+      include: {
+        orders: {
+          where: { status: { notIn: ['cancelled', 'refunded'] } },
+          orderBy: { date: 'desc' },
+          take: 1,
+          select: { date: true, total: true },
+        },
+      },
     })
-    return customers
+    return customers.map((c) => ({
+      id: c.id,
+      email: c.email,
+      firstName: c.firstName,
+      lastName: c.lastName,
+      lastOrderDate: c.orders[0]?.date,
+    }))
   }
 
   if (segmentType === 'inactive_3m') {

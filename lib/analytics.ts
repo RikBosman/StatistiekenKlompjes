@@ -266,7 +266,23 @@ export async function getOverviewStats(period = '30d'): Promise<OverviewStats> {
       select: { total: true },
     }),
     prisma.customer.count(),
-    prisma.customer.count({ where: { tags: { contains: 'logo_buyer' } } }),
+    prisma.customer.count({
+      where: {
+        orders: {
+          some: {
+            status: { notIn: ['cancelled', 'refunded'] },
+            lineItems: {
+              some: {
+                OR: [
+                  { name: { contains: 'logo' } },
+                  { name: { contains: 'tekst' } },
+                ],
+              },
+            },
+          },
+        },
+      },
+    }),
   ])
 
   const totalRevenue = orders.reduce((s, o) => s + o.total, 0)

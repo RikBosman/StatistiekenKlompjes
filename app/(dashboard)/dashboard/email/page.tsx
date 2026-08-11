@@ -22,7 +22,23 @@ export default async function EmailPage() {
       orderBy: { createdAt: 'desc' },
       include: { _count: { select: { members: true } } },
     }),
-    prisma.customer.count({ where: { tags: { contains: 'logo_buyer' } } }),
+    prisma.customer.count({
+      where: {
+        orders: {
+          some: {
+            status: { notIn: ['cancelled', 'refunded'] },
+            lineItems: {
+              some: {
+                OR: [
+                  { name: { contains: 'logo' } },
+                  { name: { contains: 'tekst' } },
+                ],
+              },
+            },
+          },
+        },
+      },
+    }),
     prisma.customer.count({
       where: {
         AND: [

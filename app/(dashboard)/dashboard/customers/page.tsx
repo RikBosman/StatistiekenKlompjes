@@ -21,7 +21,21 @@ export default async function CustomersPage({
     ;[analytics, logoCustomers] = await Promise.all([
       getCustomerAnalytics(period),
       prisma.customer.findMany({
-        where: { tags: { contains: 'logo_buyer' } },
+        where: {
+          orders: {
+            some: {
+              status: { notIn: ['cancelled', 'refunded'] },
+              lineItems: {
+                some: {
+                  OR: [
+                    { name: { contains: 'logo' } },
+                    { name: { contains: 'tekst' } },
+                  ],
+                },
+              },
+            },
+          },
+        },
         include: {
           orders: {
             where: {
