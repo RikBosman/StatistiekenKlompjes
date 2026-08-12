@@ -50,10 +50,12 @@ function fmtPrice(p: number | null): string {
   return new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(p)
 }
 
-function emailSafeImg(url: string | null): string | null {
+function proxyImg(url: string | null, w: number): string | null {
   if (!url) return null
-  // WebP is not supported in Outlook and many email clients; try the JPEG equivalent
-  return url.replace(/\.webp(\?.*)?$/i, (_, qs) => `.jpg${qs ?? ''}`)
+  // Route all email images through our proxy: converts any format (incl. WebP) to JPEG
+  // and resizes to the requested width. Works from any email client IP.
+  const base = typeof window !== 'undefined' ? window.location.origin : 'https://statistieken.klompjes.com'
+  return `${base}/api/img-proxy?url=${encodeURIComponent(url)}&w=${w}`
 }
 
 function generateHtml(cfg: BuilderConfig, products: Product[], subject: string): string {
@@ -67,7 +69,7 @@ function generateHtml(cfg: BuilderConfig, products: Product[], subject: string):
   const placeholder = `<div style="width:120px;height:90px;background:#e2e8f0;border-radius:6px;margin:0 auto;"></div>`
 
   const productCell = (p: Product) => {
-    const imgSrc = emailSafeImg(p.imageUrl)
+    const imgSrc = proxyImg(p.imageUrl, 120)
     return `
     <td style="width:25%;padding:8px;vertical-align:top;text-align:center;">
       <a href="${p.permalink || cfg.shopUrl}" style="text-decoration:none;">
@@ -132,10 +134,10 @@ function generateHtml(cfg: BuilderConfig, products: Product[], subject: string):
     <td style="padding:0 32px 32px;">
       <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f8fafc;border-radius:10px;overflow:hidden;">
         <tr>
-          ${emailSafeImg(featured.imageUrl)
+          ${proxyImg(featured.imageUrl, 240)
             ? `<td style="width:44%;vertical-align:middle;padding:0;">
                 <a href="${featured.permalink || cfg.shopUrl}">
-                  <img src="${emailSafeImg(featured.imageUrl)}" alt="${featured.name}" width="240" style="width:100%;max-width:240px;height:auto;display:block;" />
+                  <img src="${proxyImg(featured.imageUrl, 240)}" alt="${featured.name}" width="240" height="240" style="width:240px;height:240px;display:block;" />
                 </a>
                </td>`
             : ''}

@@ -4,7 +4,7 @@ const ALLOWED_IP = '77.173.211.65'
 const COOKIE_NAME = 'auth_token'
 
 // Paths that are fully public — no IP check, no auth
-const PUBLIC_PREFIXES = ['/uitschrijven', '/api/unsubscribe', '/api/cron/']
+const PUBLIC_PREFIXES = ['/uitschrijven', '/api/unsubscribe', '/api/cron/', '/api/img-proxy']
 
 function clientIp(req: NextRequest): string {
   const fwd = req.headers.get('x-forwarded-for')
