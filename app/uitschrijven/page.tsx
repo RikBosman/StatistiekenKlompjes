@@ -1,9 +1,17 @@
+import { redirect } from 'next/navigation'
+
 export default async function UitschrijvenPage({
   searchParams,
 }: {
-  searchParams: Promise<{ success?: string; error?: string }>
+  searchParams: Promise<{ success?: string; error?: string; email?: string; token?: string }>
 }) {
-  const { success, error } = await searchParams
+  const { success, error, email, token } = await searchParams
+
+  // If the unsubscribe link was generated with the old URL pattern pointing here directly,
+  // forward to the API route which does the actual validation and deletion
+  if (email && token) {
+    redirect(`/api/unsubscribe?email=${encodeURIComponent(email)}&token=${encodeURIComponent(token)}`)
+  }
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc', fontFamily: 'Arial, sans-serif' }}>

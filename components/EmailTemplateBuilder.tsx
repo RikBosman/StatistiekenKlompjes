@@ -50,6 +50,12 @@ function fmtPrice(p: number | null): string {
   return new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(p)
 }
 
+function emailSafeImg(url: string | null): string | null {
+  if (!url) return null
+  // WebP is not supported in Outlook and many email clients; try the JPEG equivalent
+  return url.replace(/\.webp(\?.*)?$/i, (_, qs) => `.jpg${qs ?? ''}`)
+}
+
 function generateHtml(cfg: BuilderConfig, products: Product[], subject: string): string {
   const getProduct = (id: number) => products.find((p) => p.id === id)
 
@@ -60,17 +66,20 @@ function generateHtml(cfg: BuilderConfig, products: Product[], subject: string):
 
   const placeholder = `<div style="width:120px;height:90px;background:#e2e8f0;border-radius:6px;margin:0 auto;"></div>`
 
-  const productCell = (p: Product) => `
+  const productCell = (p: Product) => {
+    const imgSrc = emailSafeImg(p.imageUrl)
+    return `
     <td style="width:25%;padding:8px;vertical-align:top;text-align:center;">
       <a href="${p.permalink || cfg.shopUrl}" style="text-decoration:none;">
-        ${p.imageUrl
-          ? `<img src="${p.imageUrl}" alt="${p.name}" width="120" style="width:120px;height:auto;border-radius:6px;display:block;margin:0 auto;" />`
+        ${imgSrc
+          ? `<img src="${imgSrc}" alt="${p.name}" width="120" height="120" style="width:120px;height:120px;border-radius:6px;display:block;margin:0 auto;" />`
           : placeholder}
         <p style="font-size:12px;font-weight:600;color:#1e293b;margin:8px 0 4px;line-height:1.3;">${p.name}</p>
         ${p.price != null ? `<p style="font-size:13px;color:#059669;font-weight:700;margin:0 0 8px;">${fmtPrice(p.price)}</p>` : '<p style="margin:0 0 8px;"> </p>'}
       </a>
       <a href="${p.permalink || cfg.shopUrl}" style="font-size:12px;background:${cfg.buttonBg};color:white;padding:6px 14px;border-radius:4px;text-decoration:none;display:inline-block;">Bestellen →</a>
     </td>`
+  }
 
   const gridRows: string[] = []
   for (let i = 0; i < gridProducts.length; i += 4) {
@@ -123,10 +132,10 @@ function generateHtml(cfg: BuilderConfig, products: Product[], subject: string):
     <td style="padding:0 32px 32px;">
       <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f8fafc;border-radius:10px;overflow:hidden;">
         <tr>
-          ${featured.imageUrl
+          ${emailSafeImg(featured.imageUrl)
             ? `<td style="width:44%;vertical-align:middle;padding:0;">
                 <a href="${featured.permalink || cfg.shopUrl}">
-                  <img src="${featured.imageUrl}" alt="${featured.name}" width="240" style="width:100%;max-width:240px;height:auto;display:block;" />
+                  <img src="${emailSafeImg(featured.imageUrl)}" alt="${featured.name}" width="240" style="width:100%;max-width:240px;height:auto;display:block;" />
                 </a>
                </td>`
             : ''}
