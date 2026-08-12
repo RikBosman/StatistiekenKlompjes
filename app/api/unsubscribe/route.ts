@@ -15,9 +15,18 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(`${base}/uitschrijven?error=invalid`)
   }
 
+  const campaignId = Number(searchParams.get('campaign') ?? '0') || null
+
   try {
     const customer = await prisma.customer.findUnique({ where: { email: email.toLowerCase() } })
     if (customer) {
+      // Track unsubscribe on the campaign that sent this email
+      if (campaignId) {
+        await prisma.campaign.update({
+          where: { id: campaignId },
+          data: { unsubscribes: { increment: 1 } },
+        }).catch(() => { /* campaign may not exist, ignore */ })
+      }
       // Remove from all lists and delete
       await prisma.customerListMember.deleteMany({ where: { customerId: customer.id } })
       await prisma.campaignRecipient.deleteMany({ where: { customerId: customer.id } })

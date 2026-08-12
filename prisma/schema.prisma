@@ -144,15 +144,16 @@ model CustomerListMember {
 }
 
 model Campaign {
-  id          Int       @id @default(autoincrement())
-  name        String
-  templateId  Int
-  segmentType String?   // logo_buyer | inactive_3m | top_customers | list
-  listId      Int?
-  status      String    @default("draft") // draft | sent | failed
-  totalSent   Int       @default(0)
-  createdAt   DateTime  @default(now())
-  sentAt      DateTime?
+  id           Int       @id @default(autoincrement())
+  name         String
+  templateId   Int
+  segmentType  String?   // logo_buyer | inactive_3m | top_customers | list
+  listId       Int?
+  status       String    @default("draft") // draft | sent | failed
+  totalSent    Int       @default(0)
+  unsubscribes Int       @default(0)
+  createdAt    DateTime  @default(now())
+  sentAt       DateTime?
 
   template   EmailTemplate      @relation(fields: [templateId], references: [id])
   list       CustomerList?      @relation(fields: [listId], references: [id])

@@ -34,7 +34,7 @@ export async function sendCampaign(campaignId: number): Promise<{ sent: number; 
     try {
       const baseUrl = process.env.DASHBOARD_URL || 'https://statistieken.klompjes.com'
       const token = unsubscribeToken(recipient.email)
-      const unsubscribeUrl = `${baseUrl}/api/unsubscribe?email=${encodeURIComponent(recipient.email)}&token=${token}`
+      const unsubscribeUrl = `${baseUrl}/api/unsubscribe?email=${encodeURIComponent(recipient.email)}&token=${token}&campaign=${campaignId}`
 
       const renderedHtml = renderTemplate(campaign.template.bodyHtml, {
         firstName: recipient.firstName,

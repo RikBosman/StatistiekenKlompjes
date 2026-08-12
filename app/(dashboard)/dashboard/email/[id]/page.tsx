@@ -3,6 +3,7 @@ import { formatDate, formatCurrency } from '@/lib/utils'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import DeleteCampaignButton from './DeleteCampaignButton'
+import RetryButton from './RetryButton'
 
 export const revalidate = 0
 
@@ -61,7 +62,7 @@ export default async function CampaignDetailPage({ params }: { params: Promise<{
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-4 mb-6">
         <div className="bg-white rounded-xl border border-slate-200 p-5">
           <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-2">Totaal</p>
           <p className="text-2xl font-bold text-slate-900">{campaign.recipients.length}</p>
@@ -78,6 +79,13 @@ export default async function CampaignDetailPage({ params }: { params: Promise<{
           <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-2">In wachtrij</p>
           <p className="text-2xl font-bold text-slate-900">{pendingCount}</p>
         </div>
+        <div className="bg-orange-50 rounded-xl border border-orange-200 p-5">
+          <p className="text-xs text-orange-600 uppercase tracking-wide font-medium mb-2">Uitgeschreven</p>
+          <p className="text-2xl font-bold text-orange-700">{campaign.unsubscribes}</p>
+          {sentCount > 0 && (
+            <p className="text-xs text-orange-400 mt-1">{((campaign.unsubscribes / sentCount) * 100).toFixed(1)}% van verzonden</p>
+          )}
+        </div>
         <div className="bg-emerald-50 rounded-xl border border-emerald-200 p-5">
           <p className="text-xs text-emerald-600 uppercase tracking-wide font-medium mb-2">Omzet (30d)</p>
           <p className="text-2xl font-bold text-emerald-700">{formatCurrency(attributedRevenue)}</p>
@@ -89,6 +97,16 @@ export default async function CampaignDetailPage({ params }: { params: Promise<{
           )}
         </div>
       </div>
+
+      {/* Retry button if there are failed recipients */}
+      {failedCount > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 flex items-center justify-between gap-4">
+          <p className="text-sm text-amber-800">
+            <strong>{failedCount} mails</strong> zijn niet verzonden (bijv. daglimiet bereikt). Je kunt ze opnieuw versturen zodra de limiet is gereset.
+          </p>
+          <RetryButton campaignId={campaign.id} failedCount={failedCount} />
+        </div>
+      )}
 
       {campaign.sentAt && (
         <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 mb-6 text-sm text-emerald-800">
