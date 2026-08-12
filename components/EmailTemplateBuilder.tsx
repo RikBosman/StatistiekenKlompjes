@@ -29,6 +29,9 @@ interface BuilderConfig {
   gridProductIds: number[]
   ctaText: string
   ctaUrl: string
+  closingText: string
+  closingBg: string
+  closingTextColor: string
   footerText: string
 }
 
@@ -42,6 +45,9 @@ const DEFAULT_CONFIG: BuilderConfig = {
   gridProductIds: [],
   ctaText: 'Bekijk ons assortiment',
   ctaUrl: 'https://klompjes.com',
+  closingText: '',
+  closingBg: '#1e3a5f',
+  closingTextColor: '#ffffff',
   footerText: 'Je ontvangt deze e-mail omdat je eerder een bestelling hebt geplaatst bij Klompjes.\n\nKlompjes | klompjes.com',
 }
 
@@ -66,28 +72,28 @@ function generateHtml(cfg: BuilderConfig, products: Product[], subject: string):
     .map((id) => getProduct(id))
     .filter(Boolean) as Product[]
 
-  const placeholder = `<div style="width:120px;height:90px;background:#e2e8f0;border-radius:6px;margin:0 auto;"></div>`
+  const placeholder = `<div style="width:200px;height:200px;background:#e2e8f0;border-radius:6px;margin:0 auto;"></div>`
 
   const productCell = (p: Product) => {
-    const imgSrc = proxyImg(p.imageUrl, 120)
+    const imgSrc = proxyImg(p.imageUrl, 200)
     return `
-    <td style="width:25%;padding:8px;vertical-align:top;text-align:center;">
+    <td style="width:50%;padding:12px;vertical-align:top;text-align:center;">
       <a href="${p.permalink || cfg.shopUrl}" style="text-decoration:none;">
         ${imgSrc
-          ? `<img src="${imgSrc}" alt="${p.name}" width="120" height="120" style="width:120px;height:120px;border-radius:6px;display:block;margin:0 auto;" />`
+          ? `<img src="${imgSrc}" alt="${p.name}" width="200" height="200" style="width:200px;height:200px;border-radius:8px;display:block;margin:0 auto;" />`
           : placeholder}
-        <p style="font-size:12px;font-weight:600;color:#1e293b;margin:8px 0 4px;line-height:1.3;">${p.name}</p>
-        ${p.price != null ? `<p style="font-size:13px;color:#059669;font-weight:700;margin:0 0 8px;">${fmtPrice(p.price)}</p>` : '<p style="margin:0 0 8px;"> </p>'}
+        <p style="font-size:13px;font-weight:600;color:#1e293b;margin:10px 0 4px;line-height:1.3;">${p.name}</p>
+        ${p.price != null ? `<p style="font-size:14px;color:#059669;font-weight:700;margin:0 0 12px;">${fmtPrice(p.price)}</p>` : '<p style="margin:0 0 12px;"> </p>'}
       </a>
-      <a href="${p.permalink || cfg.shopUrl}" style="font-size:12px;background:${cfg.buttonBg};color:white;padding:6px 14px;border-radius:4px;text-decoration:none;display:inline-block;">Bestellen →</a>
+      <a href="${p.permalink || cfg.shopUrl}" style="font-size:13px;font-weight:600;background:${cfg.buttonBg};color:white;padding:10px 24px;border-radius:6px;text-decoration:none;display:inline-block;">Bestellen →</a>
     </td>`
   }
 
   const gridRows: string[] = []
-  for (let i = 0; i < gridProducts.length; i += 4) {
-    const row = gridProducts.slice(i, i + 4)
-    while (row.length < 4) row.push(null as unknown as Product)
-    gridRows.push(`<tr>${row.map((p) => (p ? productCell(p) : '<td style="width:25%;padding:8px;"></td>')).join('')}</tr>`)
+  for (let i = 0; i < gridProducts.length; i += 2) {
+    const row = gridProducts.slice(i, i + 2)
+    while (row.length < 2) row.push(null as unknown as Product)
+    gridRows.push(`<tr>${row.map((p) => (p ? productCell(p) : '<td style="width:50%;padding:12px;"></td>')).join('')}</tr>`)
   }
 
   const introLines = cfg.introText
@@ -170,6 +176,20 @@ function generateHtml(cfg: BuilderConfig, products: Product[], subject: string):
   <tr>
     <td style="padding:24px 32px;text-align:center;">
       <a href="${cfg.ctaUrl}" style="background:${cfg.headerBg};color:#ffffff;padding:14px 36px;border-radius:8px;text-decoration:none;font-size:15px;font-weight:600;display:inline-block;">${cfg.ctaText}</a>
+    </td>
+  </tr>
+  ` : ''}
+
+  ${cfg.closingText.trim() ? `
+  <!-- Closing banner -->
+  <tr>
+    <td style="background:${cfg.closingBg};padding:32px;text-align:center;">
+      ${cfg.closingText
+        .split('\n')
+        .map((l, i) => l.trim()
+          ? `<p style="margin:${i === 0 ? '0' : '8px'} 0 0;color:${cfg.closingTextColor};font-size:16px;font-weight:600;line-height:1.6;">${l}</p>`
+          : '')
+        .join('')}
     </td>
   </tr>
   ` : ''}
@@ -281,7 +301,7 @@ export default function EmailTemplateBuilder({
   const toggleGrid = (id: number) => {
     if (cfg.gridProductIds.includes(id)) {
       update({ gridProductIds: cfg.gridProductIds.filter((x) => x !== id) })
-    } else if (cfg.gridProductIds.length < 8) {
+    } else if (cfg.gridProductIds.length < 6) {
       update({ gridProductIds: [...cfg.gridProductIds, id] })
     }
   }
@@ -486,9 +506,9 @@ export default function EmailTemplateBuilder({
               </div>
             </Section>
 
-            <Section title={`Productgrid — ${cfg.gridProductIds.length} / 8 geselecteerd`}>
+            <Section title={`Productgrid — ${cfg.gridProductIds.length} / 6 geselecteerd`}>
               <p className="text-xs text-slate-400 -mt-1">
-                Kies maximaal 8 producten — getoond in 4 kolommen per rij
+                Kies maximaal 6 producten — getoond in 2 kolommen per rij
               </p>
               <input
                 type="text"
@@ -503,7 +523,7 @@ export default function EmailTemplateBuilder({
                 )}
                 {filteredProducts.map((p) => {
                   const selected = cfg.gridProductIds.includes(p.id)
-                  const full = !selected && cfg.gridProductIds.length >= 8
+                  const full = !selected && cfg.gridProductIds.length >= 6
                   return (
                     <label
                       key={p.id}
@@ -580,6 +600,50 @@ export default function EmailTemplateBuilder({
                   onChange={(e) => update({ ctaUrl: e.target.value })}
                   className={inputCls}
                 />
+              </Field>
+            </Section>
+
+            <Section title="Afsluitende banner (optioneel)">
+              <Field label="Bannertekst (leeg = verborgen)">
+                <textarea
+                  value={cfg.closingText}
+                  onChange={(e) => update({ closingText: e.target.value })}
+                  rows={3}
+                  placeholder="Bijv: Dank je wel voor je vertrouwen!\nWe zien je graag weer terug."
+                  className={`${inputCls} resize-none`}
+                />
+              </Field>
+              <Field label="Achtergrondkleur banner">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={cfg.closingBg}
+                    onChange={(e) => update({ closingBg: e.target.value })}
+                    className="h-9 w-14 rounded border border-slate-200 cursor-pointer p-0.5 bg-white"
+                  />
+                  <input
+                    type="text"
+                    value={cfg.closingBg}
+                    onChange={(e) => update({ closingBg: e.target.value })}
+                    className={`${inputCls} font-mono`}
+                  />
+                </div>
+              </Field>
+              <Field label="Tekstkleur banner">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={cfg.closingTextColor}
+                    onChange={(e) => update({ closingTextColor: e.target.value })}
+                    className="h-9 w-14 rounded border border-slate-200 cursor-pointer p-0.5 bg-white"
+                  />
+                  <input
+                    type="text"
+                    value={cfg.closingTextColor}
+                    onChange={(e) => update({ closingTextColor: e.target.value })}
+                    className={`${inputCls} font-mono`}
+                  />
+                </div>
               </Field>
             </Section>
 
