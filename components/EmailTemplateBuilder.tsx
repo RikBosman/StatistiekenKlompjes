@@ -58,13 +58,13 @@ function generateHtml(cfg: BuilderConfig, products: Product[], subject: string):
     .map((id) => getProduct(id))
     .filter(Boolean) as Product[]
 
-  const placeholder = `<div style="width:100%;height:130px;background:#e2e8f0;border-radius:6px;margin:0 auto;"></div>`
+  const placeholder = `<div style="width:120px;height:90px;background:#e2e8f0;border-radius:6px;margin:0 auto;"></div>`
 
   const productCell = (p: Product) => `
     <td style="width:25%;padding:8px;vertical-align:top;text-align:center;">
       <a href="${p.permalink || cfg.shopUrl}" style="text-decoration:none;">
         ${p.imageUrl
-          ? `<img src="${p.imageUrl}" alt="${p.name}" style="width:100%;max-width:130px;height:130px;object-fit:cover;border-radius:6px;display:block;margin:0 auto;" />`
+          ? `<img src="${p.imageUrl}" alt="${p.name}" width="120" style="width:120px;height:auto;border-radius:6px;display:block;margin:0 auto;" />`
           : placeholder}
         <p style="font-size:12px;font-weight:600;color:#1e293b;margin:8px 0 4px;line-height:1.3;">${p.name}</p>
         ${p.price != null ? `<p style="font-size:13px;color:#059669;font-weight:700;margin:0 0 8px;">${fmtPrice(p.price)}</p>` : '<p style="margin:0 0 8px;"> </p>'}
@@ -126,7 +126,7 @@ function generateHtml(cfg: BuilderConfig, products: Product[], subject: string):
           ${featured.imageUrl
             ? `<td style="width:44%;vertical-align:middle;padding:0;">
                 <a href="${featured.permalink || cfg.shopUrl}">
-                  <img src="${featured.imageUrl}" alt="${featured.name}" style="width:100%;height:230px;object-fit:cover;display:block;" />
+                  <img src="${featured.imageUrl}" alt="${featured.name}" width="240" style="width:100%;max-width:240px;height:auto;display:block;" />
                 </a>
                </td>`
             : ''}
