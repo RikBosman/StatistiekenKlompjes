@@ -34,8 +34,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </Link>
           ))}
         </nav>
-        <div className="p-4 border-t border-slate-200 text-xs text-slate-400">
-          WooCommerce Analytics
+        <div className="p-4 border-t border-slate-200">
+          <form method="POST" action="/api/auth/logout">
+            <button
+              type="submit"
+              className="w-full text-left text-xs text-slate-400 hover:text-slate-600 transition-colors"
+            >
+              Uitloggen →
+            </button>
+          </form>
         </div>
       </aside>
 
