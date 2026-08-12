@@ -17,6 +17,8 @@ export async function POST(req: NextRequest) {
 
   const list = await prisma.customerList.create({ data: { name } })
 
-  // Redirect back to email page after form POST
-  return NextResponse.redirect(new URL('/dashboard/email', req.url))
+  // Redirect back to email page — use forwarded host when behind a reverse proxy
+  const host = req.headers.get('x-forwarded-host') ?? req.headers.get('host') ?? 'localhost:3000'
+  const proto = req.headers.get('x-forwarded-proto') ?? 'http'
+  return NextResponse.redirect(`${proto}://${host}/dashboard/email`)
 }
