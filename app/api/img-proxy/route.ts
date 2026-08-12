@@ -1,50 +1,72 @@
 import { NextRequest, NextResponse } from 'next/server'
-import sharp from 'sharp'
 
-// Only proxy images from klompjes domains
 const ALLOWED_HOSTS = ['klompjes.com', 'www.klompjes.com', 'statistieken.klompjes.com']
 
-export async function GET(req: NextRequest) {
-  const url = req.nextUrl.searchParams.get('url')
-  const w = Math.min(Math.max(parseInt(req.nextUrl.searchParams.get('w') ?? '240'), 40), 600)
-
-  if (!url) {
-    return new NextResponse('Missing url', { status: 400 })
-  }
-
-  let parsedUrl: URL
+function allowedUrl(url: string): boolean {
   try {
-    parsedUrl = new URL(url)
-    const ok = ALLOWED_HOSTS.some((h) => parsedUrl.hostname === h || parsedUrl.hostname.endsWith('.' + h))
-    if (!ok) return new NextResponse('Forbidden', { status: 403 })
+    const { hostname } = new URL(url)
+    return ALLOWED_HOSTS.some((h) => hostname === h || hostname.endsWith('.' + h))
   } catch {
-    return new NextResponse('Invalid url', { status: 400 })
+    return false
   }
+}
 
-  let imageBuffer: Buffer
+async function fetchImg(url: string): Promise<Response | null> {
   try {
-    const res = await fetch(parsedUrl.toString(), {
+    const res = await fetch(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (compatible; StatistiekenBot/1.0)',
         Accept: 'image/*,*/*',
       },
     })
-    if (!res.ok) {
-      console.error(`[img-proxy] upstream ${res.status} for ${url}`)
-      return new NextResponse(`Upstream error: ${res.status}`, { status: 502 })
-    }
-    imageBuffer = Buffer.from(await res.arrayBuffer())
-  } catch (err) {
-    console.error('[img-proxy] fetch error', err)
-    return new NextResponse('Fetch failed', { status: 502 })
+    return res.ok ? res : null
+  } catch {
+    return null
+  }
+}
+
+export async function GET(req: NextRequest) {
+  const url = req.nextUrl.searchParams.get('url')
+  const w = Math.min(Math.max(parseInt(req.nextUrl.searchParams.get('w') ?? '240'), 40), 600)
+
+  if (!url || !allowedUrl(url)) {
+    return new NextResponse('Bad request', { status: 400 })
   }
 
+  // Strategy 1: if URL is WebP, try the JPEG equivalent first
+  // WordPress keeps original .jpg files even when it generates .webp thumbnails
+  if (/\.webp(\?|$)/i.test(url)) {
+    const jpegUrl = url.replace(/\.webp(\?.*)?$/i, (_, qs) => `.jpg${qs ?? ''}`)
+    const res = await fetchImg(jpegUrl)
+    if (res) {
+      console.log('[img-proxy] jpeg fallback worked:', jpegUrl)
+      const buf = await res.arrayBuffer()
+      return new NextResponse(buf, {
+        headers: {
+          'Content-Type': 'image/jpeg',
+          'Cache-Control': 'public, max-age=604800, immutable',
+        },
+      })
+    }
+  }
+
+  // Strategy 2: fetch original and convert with sharp (if installed)
+  const originalRes = await fetchImg(url)
+  if (!originalRes) {
+    console.error('[img-proxy] could not fetch:', url)
+    return new NextResponse('Upstream error', { status: 502 })
+  }
+
+  const originalBuf = Buffer.from(await originalRes.arrayBuffer())
+  const originalContentType = originalRes.headers.get('content-type') ?? 'image/jpeg'
+
   try {
-    const jpeg = await sharp(imageBuffer)
+    // Dynamic import so missing sharp doesn't crash the route
+    const sharp = (await import('sharp')).default
+    const jpeg = await sharp(originalBuf)
       .resize(w, w, { fit: 'cover', position: 'centre' })
       .jpeg({ quality: 82 })
       .toBuffer()
-
     return new NextResponse(new Uint8Array(jpeg), {
       headers: {
         'Content-Type': 'image/jpeg',
@@ -52,7 +74,15 @@ export async function GET(req: NextRequest) {
       },
     })
   } catch (err) {
-    console.error('[img-proxy] sharp error', err)
-    return new NextResponse('Image processing failed', { status: 500 })
+    console.error('[img-proxy] sharp unavailable:', (err as Error).message?.slice(0, 120))
   }
+
+  // Strategy 3: pass through original as-is (better than a broken image)
+  console.log('[img-proxy] passthrough:', url, originalContentType)
+  return new NextResponse(new Uint8Array(originalBuf), {
+    headers: {
+      'Content-Type': originalContentType,
+      'Cache-Control': 'public, max-age=86400',
+    },
+  })
 }
