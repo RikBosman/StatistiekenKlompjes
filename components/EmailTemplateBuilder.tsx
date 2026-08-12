@@ -23,6 +23,7 @@ interface BuilderConfig {
   logoUrl: string
   shopUrl: string
   headerBg: string
+  buttonBg: string
   introText: string
   featuredProductId: number | null
   gridProductIds: number[]
@@ -35,6 +36,7 @@ const DEFAULT_CONFIG: BuilderConfig = {
   logoUrl: '',
   shopUrl: 'https://klompjes.com',
   headerBg: '#1e3a5f',
+  buttonBg: '#f97316',
   introText: 'Hoi {{first_name}},\n\nBedankt voor je interesse! We hebben een aantal mooie producten voor je geselecteerd.',
   featuredProductId: null,
   gridProductIds: [],
@@ -67,7 +69,7 @@ function generateHtml(cfg: BuilderConfig, products: Product[], subject: string):
         <p style="font-size:12px;font-weight:600;color:#1e293b;margin:8px 0 4px;line-height:1.3;">${p.name}</p>
         ${p.price != null ? `<p style="font-size:13px;color:#059669;font-weight:700;margin:0 0 8px;">${fmtPrice(p.price)}</p>` : '<p style="margin:0 0 8px;"> </p>'}
       </a>
-      <a href="${p.permalink || cfg.shopUrl}" style="font-size:12px;background:#0e8ee7;color:white;padding:6px 14px;border-radius:4px;text-decoration:none;display:inline-block;">Bestellen →</a>
+      <a href="${p.permalink || cfg.shopUrl}" style="font-size:12px;background:${cfg.buttonBg};color:white;padding:6px 14px;border-radius:4px;text-decoration:none;display:inline-block;">Bestellen →</a>
     </td>`
 
   const gridRows: string[] = []
@@ -132,7 +134,7 @@ function generateHtml(cfg: BuilderConfig, products: Product[], subject: string):
             <p style="margin:0 0 6px;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:#6b7280;font-weight:700;">⭐ Uitgelicht</p>
             <h2 style="margin:0 0 12px;color:#111827;font-size:19px;font-weight:700;line-height:1.3;">${featured.name}</h2>
             ${featured.price != null ? `<p style="margin:0 0 18px;font-size:24px;color:#059669;font-weight:700;">${fmtPrice(featured.price)}</p>` : ''}
-            <a href="${featured.permalink || cfg.shopUrl}" style="background:${cfg.headerBg};color:white;padding:11px 22px;border-radius:6px;text-decoration:none;font-size:14px;font-weight:600;display:inline-block;">Bekijken →</a>
+            <a href="${featured.permalink || cfg.shopUrl}" style="background:${cfg.buttonBg};color:white;padding:11px 22px;border-radius:6px;text-decoration:none;font-size:14px;font-weight:600;display:inline-block;">Bekijken →</a>
           </td>
         </tr>
       </table>
@@ -167,6 +169,10 @@ function generateHtml(cfg: BuilderConfig, products: Product[], subject: string):
       ${footerLines}
       <p style="margin:12px 0 0;color:#9ca3af;font-size:11px;">
         <a href="${cfg.shopUrl}" style="color:#9ca3af;text-decoration:none;">${cfg.shopUrl}</a>
+      </p>
+      <p style="margin:10px 0 0;color:#9ca3af;font-size:11px;">
+        Wil je geen e-mails meer ontvangen?
+        <a href="{{unsubscribe_url}}" style="color:#9ca3af;text-decoration:underline;">Klik hier om je uit te schrijven</a>
       </p>
     </td>
   </tr>
@@ -375,6 +381,22 @@ export default function EmailTemplateBuilder({
                     type="text"
                     value={cfg.headerBg}
                     onChange={(e) => update({ headerBg: e.target.value })}
+                    className={`${inputCls} font-mono`}
+                  />
+                </div>
+              </Field>
+              <Field label="Kleur knoppen (bestellen / bekijken)">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={cfg.buttonBg}
+                    onChange={(e) => update({ buttonBg: e.target.value })}
+                    className="h-9 w-14 rounded border border-slate-200 cursor-pointer p-0.5 bg-white"
+                  />
+                  <input
+                    type="text"
+                    value={cfg.buttonBg}
+                    onChange={(e) => update({ buttonBg: e.target.value })}
                     className={`${inputCls} font-mono`}
                   />
                 </div>

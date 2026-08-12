@@ -1,14 +1,21 @@
+import crypto from 'crypto'
 import { prisma } from './db'
 import { sendEmail } from './mailtrap'
 import { getSegmentCustomers, SegmentType } from './segments'
 
-export function renderTemplate(html: string, customer: { firstName: string; email: string }): string {
+export function unsubscribeToken(email: string): string {
+  const secret = process.env.CRON_SECRET || 'unsubscribe-secret'
+  return crypto.createHmac('sha256', secret).update(email.toLowerCase()).digest('hex')
+}
+
+export function renderTemplate(html: string, customer: { firstName: string; email: string; unsubscribeUrl?: string }): string {
   return html
     .replace(/\{\{first_name\}\}/gi, customer.firstName || 'klant')
     .replace(/\{\{voornaam\}\}/gi, customer.firstName || 'klant')
     .replace(/\{\{name\}\}/gi, customer.firstName || 'klant')
     .replace(/\{\{naam\}\}/gi, customer.firstName || 'klant')
     .replace(/\{\{email\}\}/gi, customer.email)
+    .replace(/\{\{unsubscribe_url\}\}/gi, customer.unsubscribeUrl || '#')
 }
 
 export async function sendCampaign(campaignId: number): Promise<{ sent: number; failed: number }> {
@@ -25,9 +32,14 @@ export async function sendCampaign(campaignId: number): Promise<{ sent: number; 
 
   for (const recipient of pending) {
     try {
+      const baseUrl = process.env.DASHBOARD_URL || 'https://statistieken.klompjes.com'
+      const token = unsubscribeToken(recipient.email)
+      const unsubscribeUrl = `${baseUrl}/uitschrijven?email=${encodeURIComponent(recipient.email)}&token=${token}`
+
       const html = renderTemplate(campaign.template.bodyHtml, {
         firstName: recipient.firstName,
         email: recipient.email,
+        unsubscribeUrl,
       })
       const subject = renderTemplate(campaign.template.subject, {
         firstName: recipient.firstName,
