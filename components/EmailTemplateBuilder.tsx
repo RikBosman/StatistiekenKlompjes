@@ -217,6 +217,7 @@ export default function EmailTemplateBuilder({
   const [name, setName] = useState(template?.name || 'Nieuw sjabloon')
   const [subject, setSubject] = useState(template?.subject || '')
   const [cfg, setCfg] = useState<BuilderConfig>(initialConfig)
+  const [featuredSearch, setFeaturedSearch] = useState('')
   const [productSearch, setProductSearch] = useState('')
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
@@ -225,6 +226,16 @@ export default function EmailTemplateBuilder({
   const update = useCallback((patch: Partial<BuilderConfig>) => {
     setCfg((prev) => ({ ...prev, ...patch }))
   }, [])
+
+  const filteredFeatured = useMemo(() => {
+    const q = featuredSearch.toLowerCase()
+    return products.filter(
+      (p) =>
+        !q ||
+        p.name.toLowerCase().includes(q) ||
+        (p.sku ?? '').toLowerCase().includes(q)
+    )
+  }, [products, featuredSearch])
 
   const filteredProducts = useMemo(() => {
     const q = productSearch.toLowerCase()
@@ -389,17 +400,29 @@ export default function EmailTemplateBuilder({
               <p className="text-xs text-slate-400 -mt-1">
                 Één product dat groot wordt uitgelicht met foto en prijs
               </p>
-              <div className="max-h-44 overflow-y-auto border border-slate-200 rounded-lg divide-y divide-slate-50">
-                <label className="flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="featured"
-                    checked={cfg.featuredProductId === null}
-                    onChange={() => update({ featuredProductId: null })}
-                  />
-                  <span className="text-sm text-slate-400 italic">Geen uitgelicht product</span>
-                </label>
-                {products.slice(0, 60).map((p) => (
+              <input
+                type="text"
+                value={featuredSearch}
+                onChange={(e) => setFeaturedSearch(e.target.value)}
+                placeholder="Zoek op naam of SKU..."
+                className={inputCls}
+              />
+              <div className="max-h-52 overflow-y-auto border border-slate-200 rounded-lg divide-y divide-slate-50">
+                {!featuredSearch && (
+                  <label className="flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="featured"
+                      checked={cfg.featuredProductId === null}
+                      onChange={() => update({ featuredProductId: null })}
+                    />
+                    <span className="text-sm text-slate-400 italic">Geen uitgelicht product</span>
+                  </label>
+                )}
+                {filteredFeatured.length === 0 && (
+                  <p className="px-3 py-4 text-sm text-slate-400 text-center">Geen producten gevonden</p>
+                )}
+                {filteredFeatured.map((p) => (
                   <label
                     key={p.id}
                     className="flex items-center gap-3 px-3 py-2 hover:bg-slate-50 cursor-pointer"
