@@ -89,21 +89,60 @@ export async function syncOrders(afterDate?: string, beforeDate?: string): Promi
         const shippingMethod = o.shipping_lines?.[0]?.method_title ?? null
 
         let customer = null
-        if (o.customer_id && customerEmail) {
-          customer = await prisma.customer.upsert({
-            where: { id: o.customer_id },
-            create: {
-              id: o.customer_id,
-              email: customerEmail,
-              firstName: o.billing?.first_name || '',
-              lastName: o.billing?.last_name || '',
-            },
-            update: {
-              email: customerEmail,
-              firstName: o.billing?.first_name || '',
-              lastName: o.billing?.last_name || '',
-            },
-          })
+        if (customerEmail) {
+          if (o.customer_id > 0) {
+            // Registered WooCommerce account — upsert by WooCommerce ID
+            customer = await prisma.customer.upsert({
+              where: { id: o.customer_id },
+              create: {
+                id: o.customer_id,
+                email: customerEmail,
+                firstName: o.billing?.first_name || '',
+                lastName: o.billing?.last_name || '',
+              },
+              update: {
+                email: customerEmail,
+                firstName: o.billing?.first_name || '',
+                lastName: o.billing?.last_name || '',
+              },
+            })
+          } else {
+            // Guest order (customer_id = 0) — find or create by email
+            const existing = await prisma.customer.findUnique({ where: { email: customerEmail } })
+            if (existing) {
+              customer = existing
+              // Fill in name if it was previously blank
+              if (!existing.firstName && (o.billing?.first_name || o.billing?.last_name)) {
+                customer = await prisma.customer.update({
+                  where: { id: existing.id },
+                  data: {
+                    firstName: o.billing?.first_name || existing.firstName,
+                    lastName: o.billing?.last_name || existing.lastName,
+                  },
+                })
+              }
+            } else {
+              // Assign synthetic negative ID so it never clashes with WooCommerce IDs
+              const lowestGuest = await prisma.customer.findFirst({
+                where: { id: { lt: 0 } },
+                orderBy: { id: 'asc' },
+              })
+              const newId = lowestGuest ? lowestGuest.id - 1 : -1
+              try {
+                customer = await prisma.customer.create({
+                  data: {
+                    id: newId,
+                    email: customerEmail,
+                    firstName: o.billing?.first_name || '',
+                    lastName: o.billing?.last_name || '',
+                  },
+                })
+              } catch {
+                // Race condition: customer already created between our check and create
+                customer = await prisma.customer.findUnique({ where: { email: customerEmail } }) ?? null
+              }
+            }
+          }
         }
 
         await prisma.order.upsert({
@@ -111,7 +150,7 @@ export async function syncOrders(afterDate?: string, beforeDate?: string): Promi
           create: {
             id: o.id,
             date: new Date(o.date_created),
-            customerId: customer?.id || null,
+            customerId: customer?.id ?? null,
             customerEmail,
             customerName,
             total: parseFloat(o.total) || 0,
@@ -121,6 +160,7 @@ export async function syncOrders(afterDate?: string, beforeDate?: string): Promi
             syncedAt: new Date(),
           },
           update: {
+            customerId: customer?.id ?? null,
             status: o.status,
             total: parseFloat(o.total) || 0,
             shippingTotal: parseFloat(o.shipping_total) || 0,

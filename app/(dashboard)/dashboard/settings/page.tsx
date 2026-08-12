@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/db'
+import ResyncButton from './ResyncButton'
 
 export const revalidate = 0
 
@@ -36,6 +37,20 @@ export default async function SettingsPage() {
             value={process.env.MAILTRAP_API_TOKEN ? 'Token aanwezig' : 'Niet ingesteld'}
           />
         </div>
+      </div>
+
+      {/* Customer resync */}
+      <div className="bg-white rounded-lg border border-slate-200 p-6 mb-6">
+        <h3 className="font-medium text-slate-700 mb-2">Klantensynchronisatie</h3>
+        <p className="text-sm text-slate-500 mb-1">
+          Ontbrekende klanten? Gastbestellingen worden standaard niet als klant opgeslagen.
+          Klik op de knop om alle historische bestellingen opnieuw in te lezen en
+          <strong> alle gastklanten toe te voegen</strong> aan je klantenlijst.
+        </p>
+        <p className="text-xs text-slate-400">
+          Dit kan enkele minuten duren afhankelijk van het aantal bestellingen.
+        </p>
+        <ResyncButton />
       </div>
 
       {/* Cron info */}
