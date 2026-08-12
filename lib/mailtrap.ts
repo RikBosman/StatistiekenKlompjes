@@ -6,7 +6,7 @@ function getClient(): MailtrapClient {
   if (!client) {
     const token = process.env.MAILTRAP_API_TOKEN
     if (!token) throw new Error('MAILTRAP_API_TOKEN not configured')
-    client = new MailtrapClient({ token })
+    client = new MailtrapClient({ token, bulk: true })
   }
   return client
 }
