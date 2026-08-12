@@ -26,12 +26,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   let customerId: number
   if ('email' in parsed.data) {
-    const customer = await prisma.customer.findFirst({ where: { email: parsed.data.email } })
+    const email = parsed.data.email.toLowerCase()
+    let customer = await prisma.customer.findFirst({ where: { email } })
     if (!customer) {
-      // Redirect back with error if form POST
-      const host = req.headers.get('x-forwarded-host') ?? req.headers.get('host') ?? 'localhost:3000'
-      const proto = req.headers.get('x-forwarded-proto') ?? 'http'
-      return NextResponse.redirect(`${proto}://${host}/dashboard/email/lists/${id}?error=not_found`)
+      // Create a test customer — use a high synthetic ID to avoid WooCommerce ID conflicts
+      const topCustomer = await prisma.customer.findFirst({ orderBy: { id: 'desc' } })
+      const newId = Math.max((topCustomer?.id ?? 0), 9_000_000) + 1
+      const firstName = email.split('@')[0]
+      customer = await prisma.customer.create({
+        data: { id: newId, email, firstName, lastName: '' },
+      })
     }
     customerId = customer.id
   } else {
