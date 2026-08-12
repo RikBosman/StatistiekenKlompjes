@@ -116,7 +116,7 @@ function generateHtml(cfg: BuilderConfig, products: Product[], subject: string):
   <tr>
     <td style="background:${cfg.headerBg};padding:24px 32px;">
       ${cfg.logoUrl
-        ? `<img src="${cfg.logoUrl}" alt="Logo" style="max-height:52px;max-width:200px;display:block;" />`
+        ? `<img src="${cfg.logoUrl}" alt="Logo" width="200" style="width:200px;height:auto;display:block;" />`
         : `<p style="margin:0;color:#ffffff;font-size:22px;font-weight:700;letter-spacing:-0.5px;">Klompjes</p>`}
     </td>
   </tr>
