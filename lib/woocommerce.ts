@@ -9,6 +9,7 @@ export interface WCProduct {
   price: string
   permalink: string
   categories: Array<{ id: number; name: string }>
+  tags: Array<{ id: number; name: string }>
   images: Array<{ id: number; src: string; name: string }>
   meta_data: Array<{ key: string; value: string }>
 }

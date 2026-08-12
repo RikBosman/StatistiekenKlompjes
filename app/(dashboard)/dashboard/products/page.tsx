@@ -166,6 +166,7 @@ export default async function ProductsPage({
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50">
                 <th className="text-left px-6 py-3 font-medium text-slate-500">Product</th>
+                <th className="text-left px-4 py-3 font-medium text-slate-500">Leverancier</th>
                 <th className="text-left px-4 py-3 font-medium text-slate-500">Status</th>
                 <th className="text-right px-4 py-3 font-medium text-slate-500">Verkopen ({period})</th>
                 <th className="text-right px-4 py-3 font-medium text-slate-500">Omzet ({period})</th>
@@ -179,7 +180,7 @@ export default async function ProductsPage({
             <tbody>
               {sorted.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-6 py-8 text-center text-slate-400 text-sm">
+                  <td colSpan={10} className="px-6 py-8 text-center text-slate-400 text-sm">
                     Geen producten gevonden voor deze filter.
                   </td>
                 </tr>
@@ -188,6 +189,15 @@ export default async function ProductsPage({
                   <td className="px-6 py-3">
                     <p className="font-medium text-slate-900 truncate max-w-xs">{p.name}</p>
                     {p.sku && <p className="text-xs text-slate-400 font-mono">{p.sku}</p>}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex flex-wrap gap-1">
+                      {p.tags.length > 0
+                        ? p.tags.map((t) => (
+                            <span key={t} className="px-2 py-0.5 bg-violet-50 text-violet-700 border border-violet-200 rounded text-xs font-medium whitespace-nowrap">{t}</span>
+                          ))
+                        : <span className="text-slate-300 text-xs">—</span>}
+                    </div>
                   </td>
                   <td className="px-4 py-3">
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusColor[p.status]}`}>

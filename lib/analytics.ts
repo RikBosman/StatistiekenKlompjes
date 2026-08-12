@@ -75,6 +75,7 @@ export interface ProductPerformance {
   name: string
   sku: string | null
   cogs: number | null
+  tags: string[]
   firstOrderDate: Date | null
   createdAt: Date
   isNew: boolean
@@ -202,11 +203,15 @@ export async function getProductPerformance(period = '30d'): Promise<ProductPerf
     const grossProfit = totalRevenuePeriod - cogsTotal
     const profitMarginPct = totalRevenuePeriod > 0 ? (grossProfit / totalRevenuePeriod) * 100 : 0
 
+    let tags: string[] = []
+    try { tags = JSON.parse(p.tags || '[]') } catch {}
+
     return {
       id: p.id,
       name: p.name,
       sku: p.sku,
       cogs: p.cogs,
+      tags,
       firstOrderDate: p.firstOrderDate,
       createdAt: p.createdAt,
       isNew,

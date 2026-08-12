@@ -19,6 +19,7 @@ model Product {
   createdAt      DateTime
   status         String
   categories     String   // JSON array of category names
+  tags           String   @default("[]") // JSON array of tag names (leveranciers)
   syncedAt       DateTime @default(now())
 
   orderItems OrderItem[]

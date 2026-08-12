@@ -12,6 +12,7 @@ export async function syncProducts(): Promise<{ count: number; error?: string }>
       const price = p.price ? parseFloat(p.price) || null : null
       const imageUrl = p.images?.[0]?.src || null
       const permalink = p.permalink || null
+      const tagNames = JSON.stringify((p.tags ?? []).map((t) => t.name))
 
       await prisma.product.upsert({
         where: { id: p.id },
@@ -26,6 +27,7 @@ export async function syncProducts(): Promise<{ count: number; error?: string }>
           createdAt: new Date(p.date_created),
           status: p.status,
           categories: JSON.stringify(p.categories.map((c) => c.name)),
+          tags: tagNames,
           syncedAt: new Date(),
         },
         update: {
@@ -37,6 +39,7 @@ export async function syncProducts(): Promise<{ count: number; error?: string }>
           permalink,
           status: p.status,
           categories: JSON.stringify(p.categories.map((c) => c.name)),
+          tags: tagNames,
           syncedAt: new Date(),
         },
       })
