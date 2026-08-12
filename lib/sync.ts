@@ -91,21 +91,35 @@ export async function syncOrders(afterDate?: string, beforeDate?: string): Promi
         let customer = null
         if (customerEmail) {
           if (o.customer_id > 0) {
-            // Registered WooCommerce account — upsert by WooCommerce ID
-            customer = await prisma.customer.upsert({
-              where: { id: o.customer_id },
-              create: {
-                id: o.customer_id,
-                email: customerEmail,
-                firstName: o.billing?.first_name || '',
-                lastName: o.billing?.last_name || '',
-              },
-              update: {
-                email: customerEmail,
-                firstName: o.billing?.first_name || '',
-                lastName: o.billing?.last_name || '',
-              },
-            })
+            // Registered WooCommerce account
+            const byId = await prisma.customer.findUnique({ where: { id: o.customer_id } })
+            if (byId) {
+              // Already known — just update name/email
+              customer = await prisma.customer.update({
+                where: { id: o.customer_id },
+                data: {
+                  email: customerEmail,
+                  firstName: o.billing?.first_name || '',
+                  lastName: o.billing?.last_name || '',
+                },
+              })
+            } else {
+              // Not found by ID — check if the email already exists (guest who later registered)
+              const byEmail = await prisma.customer.findUnique({ where: { email: customerEmail } })
+              if (byEmail) {
+                // Reuse the existing record; don't change the ID (FK references depend on it)
+                customer = byEmail
+              } else {
+                customer = await prisma.customer.create({
+                  data: {
+                    id: o.customer_id,
+                    email: customerEmail,
+                    firstName: o.billing?.first_name || '',
+                    lastName: o.billing?.last_name || '',
+                  },
+                })
+              }
+            }
           } else {
             // Guest order (customer_id = 0) — find or create by email
             const existing = await prisma.customer.findUnique({ where: { email: customerEmail } })
