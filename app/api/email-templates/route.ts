@@ -7,6 +7,7 @@ const schema = z.object({
   name: z.string().min(1),
   subject: z.string().min(1),
   bodyHtml: z.string().min(1),
+  bodyJson: z.string().optional(),
   isDefault: z.boolean().optional(),
 })
 
@@ -22,9 +23,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
   }
 
-  const { name, subject, bodyHtml, isDefault } = parsed.data
+  const { name, subject, bodyHtml, bodyJson, isDefault } = parsed.data
   const template = await prisma.emailTemplate.create({
-    data: { name, subject, bodyHtml, isDefault: isDefault ?? false },
+    data: { name, subject, bodyHtml, bodyJson: bodyJson ?? '{}', isDefault: isDefault ?? false },
   })
   return NextResponse.json(template, { status: 201 })
 }
@@ -36,14 +37,14 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
   }
 
-  const { id, name, subject, bodyHtml, isDefault } = parsed.data
+  const { id, name, subject, bodyHtml, bodyJson, isDefault } = parsed.data
   if (!id) {
     return NextResponse.json({ error: 'id required for PUT' }, { status: 400 })
   }
 
   const template = await prisma.emailTemplate.update({
     where: { id },
-    data: { name, subject, bodyHtml, isDefault: isDefault ?? false },
+    data: { name, subject, bodyHtml, bodyJson: bodyJson ?? '{}', isDefault: isDefault ?? false },
   })
   return NextResponse.json(template)
 }

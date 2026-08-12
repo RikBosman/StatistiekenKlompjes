@@ -9,6 +9,10 @@ export async function syncProducts(): Promise<{ count: number; error?: string }>
       const cogsMeta = p.meta_data?.find((m) => m.key === '_wc_cog_cost')
       const cogs = cogsMeta ? parseFloat(cogsMeta.value) || null : null
 
+      const price = p.price ? parseFloat(p.price) || null : null
+      const imageUrl = p.images?.[0]?.src || null
+      const permalink = p.permalink || null
+
       await prisma.product.upsert({
         where: { id: p.id },
         create: {
@@ -16,6 +20,9 @@ export async function syncProducts(): Promise<{ count: number; error?: string }>
           name: p.name,
           sku: p.sku || null,
           cogs,
+          price,
+          imageUrl,
+          permalink,
           createdAt: new Date(p.date_created),
           status: p.status,
           categories: JSON.stringify(p.categories.map((c) => c.name)),
@@ -25,6 +32,9 @@ export async function syncProducts(): Promise<{ count: number; error?: string }>
           name: p.name,
           sku: p.sku || null,
           cogs,
+          price,
+          imageUrl,
+          permalink,
           status: p.status,
           categories: JSON.stringify(p.categories.map((c) => c.name)),
           syncedAt: new Date(),

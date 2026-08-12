@@ -6,7 +6,10 @@ export interface WCProduct {
   sku: string
   status: string
   date_created: string
+  price: string
+  permalink: string
   categories: Array<{ id: number; name: string }>
+  images: Array<{ id: number; src: string; name: string }>
   meta_data: Array<{ key: string; value: string }>
 }
 

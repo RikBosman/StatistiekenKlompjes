@@ -12,6 +12,9 @@ model Product {
   name           String
   sku            String?
   cogs           Float?
+  price          Float?
+  imageUrl       String?
+  permalink      String?
   firstOrderDate DateTime?
   createdAt      DateTime
   status         String
@@ -105,6 +108,7 @@ model EmailTemplate {
   name             String
   subject          String
   bodyHtml         String
+  bodyJson         String   @default("{}") // visual builder config
   linkedProductIds String   @default("[]") // JSON array
   isDefault        Boolean  @default(false)
   updatedAt        DateTime @updatedAt
