@@ -18,62 +18,45 @@ export default async function CustomersPage({
   let error = null
 
   try {
-    ;[analytics, logoCustomers] = await Promise.all([
-      getCustomerAnalytics(period),
-      prisma.customer.findMany({
-        where: {
-          orders: {
-            some: {
-              status: { notIn: ['cancelled', 'refunded'] },
-              lineItems: {
-                some: {
-                  OR: [
-                    { name: { contains: 'logo' } },
-                    { name: { contains: 'tekst' } },
-                  ],
-                },
-              },
+    analytics = await getCustomerAnalytics(period)
+
+    // Two-step: find logo/tekst customer IDs via orderItems (avoids notIn), then fetch customers
+    const logoItems = await prisma.orderItem.findMany({
+      where: {
+        OR: [
+          { name: { contains: 'logo' } },
+          { name: { contains: 'tekst' } },
+          { name: { contains: 'Logo' } },
+          { name: { contains: 'Tekst' } },
+        ],
+      },
+      select: { order: { select: { status: true, customerId: true } } },
+    })
+    const logoCustomerIds = [
+      ...new Set(
+        logoItems
+          .filter((i) => i.order.status !== 'cancelled' && i.order.status !== 'refunded' && i.order.customerId)
+          .map((i) => i.order.customerId as number)
+      ),
+    ]
+
+    logoCustomers = logoCustomerIds.length === 0
+      ? []
+      : await prisma.customer.findMany({
+          where: { id: { in: logoCustomerIds } },
+          include: {
+            orders: {
+              orderBy: { date: 'desc' },
+              take: 1,
+              include: { lineItems: true },
+            },
+            reminders: {
+              orderBy: { triggeredAt: 'desc' },
+              take: 1,
             },
           },
-        },
-        include: {
-          orders: {
-            where: {
-              status: { notIn: ['cancelled', 'refunded'] },
-              lineItems: {
-                some: {
-                  OR: [
-                    { name: { contains: 'logo' } },
-                    { name: { contains: 'tekst' } },
-                    { name: { contains: 'Logo' } },
-                    { name: { contains: 'Tekst' } },
-                  ],
-                },
-              },
-            },
-            orderBy: { date: 'desc' },
-            take: 1,
-            include: {
-              lineItems: {
-                where: {
-                  OR: [
-                    { name: { contains: 'logo' } },
-                    { name: { contains: 'tekst' } },
-                    { name: { contains: 'Logo' } },
-                    { name: { contains: 'Tekst' } },
-                  ],
-                },
-              },
-            },
-          },
-          reminders: {
-            orderBy: { triggeredAt: 'desc' },
-            take: 1,
-          },
-        },
-        orderBy: { id: 'desc' },
-      }),
-    ])
+          orderBy: { id: 'desc' },
+        })
   } catch (err) {
     error = err instanceof Error ? err.message : 'Onbekende fout'
   }

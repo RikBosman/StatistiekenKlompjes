@@ -362,18 +362,20 @@ export async function getCustomerAnalytics(period = '30d'): Promise<CustomerAnal
     prisma.customer.findMany({
       include: {
         orders: {
-          where: {
-            status: { notIn: ['cancelled', 'refunded'] },
-            date: { gte: since },
-          },
-          select: { total: true, date: true },
+          where: { date: { gte: since } },
+          select: { total: true, date: true, status: true },
           orderBy: { date: 'desc' },
         },
       },
     }),
   ])
 
-  const withOrders = customers.filter((c) => c.orders.length > 0)
+  const withOrders = customers
+    .map((c) => ({
+      ...c,
+      orders: c.orders.filter((o) => o.status !== 'cancelled' && o.status !== 'refunded'),
+    }))
+    .filter((c) => c.orders.length > 0)
   const repeatCustomers = withOrders.filter((c) => c.orders.length > 1).length
   const totalRevenue = withOrders.reduce((s, c) => s + c.orders.reduce((ss, o) => ss + o.total, 0), 0)
   const avgOrderValue = withOrders.length > 0 ? totalRevenue / withOrders.length : 0

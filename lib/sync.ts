@@ -247,13 +247,15 @@ async function tagLogoTekstCustomers() {
         { name: { contains: 'Logo' } },
         { name: { contains: 'Tekst' } },
       ],
-      order: { status: { notIn: ['cancelled', 'refunded'] } },
     },
-    include: { order: true },
+    select: { order: { select: { status: true, customerId: true } } },
   })
 
   const customerIds = new Set(
-    logoTekstItems.map((i) => i.order.customerId).filter(Boolean) as number[]
+    logoTekstItems
+      .filter((i) => i.order.status !== 'cancelled' && i.order.status !== 'refunded')
+      .map((i) => i.order.customerId)
+      .filter(Boolean) as number[]
   )
 
   for (const customerId of customerIds) {

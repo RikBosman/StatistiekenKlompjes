@@ -15,11 +15,10 @@ export async function processReminders(): Promise<{ sent: number; errors: string
   const errors: string[] = []
 
   for (const customer of customers) {
-    // Find their last logo/tekst order
-    const lastLogoOrder = await prisma.order.findFirst({
+    // Find their last logo/tekst order (avoid notIn — filter status in JS)
+    const recentOrders = await prisma.order.findMany({
       where: {
         customerId: customer.id,
-        status: { notIn: ['cancelled', 'refunded'] },
         lineItems: {
           some: {
             OR: [
@@ -34,6 +33,9 @@ export async function processReminders(): Promise<{ sent: number; errors: string
       orderBy: { date: 'desc' },
       include: { lineItems: true },
     })
+    const lastLogoOrder = recentOrders.find(
+      (o) => o.status !== 'cancelled' && o.status !== 'refunded'
+    ) ?? null
 
     if (!lastLogoOrder) continue
 
