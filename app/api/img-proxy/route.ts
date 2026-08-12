@@ -1,16 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { readFile } from 'fs/promises'
-import path from 'path'
+import axios from 'axios'
 import sharp from 'sharp'
 
-const ALLOWED_HOSTS = ['klompjes.com', 'www.klompjes.com']
-
-// Local webroot for klompjes.com so we can read image files directly from
-// disk rather than making an HTTP request (shared hosting often blocks
-// loopback / same-server HTTP requests).
-// Set KLOMPJES_WEBROOT in .env, e.g.:
-//   KLOMPJES_WEBROOT=/home/klompjes/domains/klompjes.com/public_html
-const KLOMPJES_WEBROOT = process.env.KLOMPJES_WEBROOT ?? ''
+const ALLOWED_HOSTS = ['klompjes.com', 'www.klompjes.com', 'statistieken.klompjes.com']
 
 function allowedUrl(url: string): boolean {
   try {
@@ -21,30 +13,23 @@ function allowedUrl(url: string): boolean {
   }
 }
 
-async function readFromDisk(url: string): Promise<Buffer | null> {
-  if (!KLOMPJES_WEBROOT) return null
+async function fetchImg(url: string): Promise<Buffer | null> {
   try {
-    const { pathname } = new URL(url)
-    const abs = path.resolve(KLOMPJES_WEBROOT, '.' + pathname)
-    // Safety: ensure we stay within the webroot
-    if (!abs.startsWith(path.resolve(KLOMPJES_WEBROOT))) return null
-    return await readFile(abs)
-  } catch {
-    return null
-  }
-}
-
-async function fetchFromHttp(url: string): Promise<Buffer | null> {
-  try {
-    const res = await fetch(url, {
+    const res = await axios.get<Buffer>(url, {
+      responseType: 'arraybuffer',
+      timeout: 15000,
       headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; StatistiekenBot/1.0)',
-        Accept: 'image/*,*/*',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        Accept: 'image/*,*/*;q=0.8',
+        Referer: 'https://klompjes.com/',
       },
     })
-    if (!res.ok) return null
-    return Buffer.from(await res.arrayBuffer())
-  } catch {
+    return Buffer.from(res.data)
+  } catch (err) {
+    const msg = axios.isAxiosError(err)
+      ? `${err.response?.status ?? 'network'} ${err.message}`
+      : String(err)
+    console.error('[img-proxy] fetch failed:', msg, url)
     return null
   }
 }
@@ -57,26 +42,19 @@ export async function GET(req: NextRequest) {
     return new NextResponse('Bad request', { status: 400 })
   }
 
-  // 1. Try reading the file directly from disk (fastest, avoids HTTP firewall)
-  let buf: Buffer | null = await readFromDisk(url)
+  // Try original URL first
+  let buf = await fetchImg(url)
 
-  // 2. If disk read failed, try HTTP fetch
-  if (!buf) {
-    buf = await fetchFromHttp(url)
-  }
-
-  // 3. If URL is .webp and still no buffer, try .jpg equivalent via HTTP
+  // If .webp and failed, try .jpg equivalent
   if (!buf && /\.webp(\?|$)/i.test(url)) {
     const jpgUrl = url.replace(/\.webp(\?.*)?$/i, (_, qs) => `.jpg${qs ?? ''}`)
-    buf = await readFromDisk(jpgUrl) ?? await fetchFromHttp(jpgUrl)
+    buf = await fetchImg(jpgUrl)
   }
 
   if (!buf) {
-    console.error('[img-proxy] all strategies failed for:', url)
     return new NextResponse('Image not found', { status: 404 })
   }
 
-  // 4. Convert & resize to JPEG via sharp
   try {
     const jpeg = await sharp(buf)
       .resize(w, w, { fit: 'cover', position: 'centre' })
@@ -91,12 +69,8 @@ export async function GET(req: NextRequest) {
     })
   } catch (err) {
     console.error('[img-proxy] sharp error:', (err as Error).message?.slice(0, 200))
-    // Return original buffer as fallback even if sharp fails
     return new NextResponse(new Uint8Array(buf), {
-      headers: {
-        'Content-Type': 'image/jpeg',
-        'Cache-Control': 'public, max-age=86400',
-      },
+      headers: { 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=86400' },
     })
   }
 }
