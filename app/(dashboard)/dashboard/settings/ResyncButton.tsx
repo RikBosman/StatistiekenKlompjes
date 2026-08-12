@@ -40,7 +40,7 @@ export default function ResyncButton() {
       )}
       {state === 'running' && (
         <p className="mt-2 text-xs text-slate-400">
-          Alle bestellingen worden opnieuw ingelezen vanaf 2015. Verlaat deze pagina niet.
+          Alle bestellingen vanaf 1 jan 2026 worden opnieuw ingelezen. Verlaat deze pagina niet.
         </p>
       )}
     </div>

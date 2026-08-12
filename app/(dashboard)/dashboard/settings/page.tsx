@@ -48,7 +48,7 @@ export default async function SettingsPage() {
           <strong> alle gastklanten toe te voegen</strong> aan je klantenlijst.
         </p>
         <p className="text-xs text-slate-400">
-          Dit kan enkele minuten duren afhankelijk van het aantal bestellingen.
+          Synct bestellingen vanaf 1 januari 2026. Dit kan enkele minuten duren.
         </p>
         <ResyncButton />
       </div>
