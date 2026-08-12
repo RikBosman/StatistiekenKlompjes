@@ -1,7 +1,8 @@
 import { prisma } from '@/lib/db'
-import { formatDate } from '@/lib/utils'
+import { formatDate, formatCurrency } from '@/lib/utils'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
+import DeleteCampaignButton from './DeleteCampaignButton'
 
 export const revalidate = 0
 
@@ -22,22 +23,45 @@ export default async function CampaignDetailPage({ params }: { params: Promise<{
   const failedCount = campaign.recipients.filter((r) => r.status === 'failed').length
   const pendingCount = campaign.recipients.filter((r) => r.status === 'pending').length
 
+  // Revenue attribution: orders placed by recipients within 30 days after send
+  let attributedRevenue = 0
+  let attributedOrders = 0
+  if (campaign.sentAt && campaign.recipients.length > 0) {
+    const emails = campaign.recipients.map((r) => r.email)
+    const windowEnd = new Date(campaign.sentAt.getTime() + 30 * 24 * 60 * 60 * 1000)
+    const agg = await prisma.order.aggregate({
+      where: {
+        customerEmail: { in: emails },
+        date: { gte: campaign.sentAt, lte: windowEnd },
+        status: { notIn: ['cancelled', 'refunded'] },
+      },
+      _sum: { total: true },
+      _count: { id: true },
+    })
+    attributedRevenue = agg._sum.total ?? 0
+    attributedOrders = agg._count.id
+  }
+
   const segmentLabels: Record<string, string> = {
     logo_buyer: 'Logo/tekst kopers',
     inactive_3m: 'Slapende klanten (3m+)',
     top_customers: 'Top klanten',
+    repeat_buyer: 'Vaste klanten',
     list: campaign.list?.name ?? 'Handmatige lijst',
   }
 
   return (
     <div className="p-8">
-      <div className="mb-6">
-        <Link href="/dashboard/email" className="text-sm text-slate-400 hover:text-slate-600">← Campagnes</Link>
-        <h2 className="text-2xl font-bold text-slate-900 mt-1">{campaign.name}</h2>
+      <div className="mb-6 flex items-start justify-between">
+        <div>
+          <Link href="/dashboard/email" className="text-sm text-slate-400 hover:text-slate-600">← Campagnes</Link>
+          <h2 className="text-2xl font-bold text-slate-900 mt-1">{campaign.name}</h2>
+        </div>
+        <DeleteCampaignButton id={campaign.id} />
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
         <div className="bg-white rounded-xl border border-slate-200 p-5">
           <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-2">Totaal</p>
           <p className="text-2xl font-bold text-slate-900">{campaign.recipients.length}</p>
@@ -50,11 +74,30 @@ export default async function CampaignDetailPage({ params }: { params: Promise<{
           <p className="text-xs text-red-600 uppercase tracking-wide font-medium mb-2">Mislukt</p>
           <p className="text-2xl font-bold text-red-700">{failedCount}</p>
         </div>
-        <div className="bg-white rounded-xl border border-slate-200 p-5">
+        <div className="bg-slate-50 rounded-xl border border-slate-200 p-5">
           <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-2">In wachtrij</p>
           <p className="text-2xl font-bold text-slate-900">{pendingCount}</p>
         </div>
+        <div className="bg-emerald-50 rounded-xl border border-emerald-200 p-5">
+          <p className="text-xs text-emerald-600 uppercase tracking-wide font-medium mb-2">Omzet (30d)</p>
+          <p className="text-2xl font-bold text-emerald-700">{formatCurrency(attributedRevenue)}</p>
+          {attributedOrders > 0 && (
+            <p className="text-xs text-emerald-500 mt-1">{attributedOrders} bestellingen</p>
+          )}
+          {!campaign.sentAt && (
+            <p className="text-xs text-slate-400 mt-1">Nog niet verzonden</p>
+          )}
+        </div>
       </div>
+
+      {campaign.sentAt && (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 mb-6 text-sm text-emerald-800">
+          <strong>Omzetattributie:</strong> bestellingen van ontvangers binnen 30 dagen na verzending ({formatDate(campaign.sentAt)}).
+          {attributedRevenue === 0
+            ? ' Nog geen bestellingen gedetecteerd.'
+            : ` ${attributedOrders} bestelling${attributedOrders !== 1 ? 'en' : ''} — ${formatCurrency(attributedRevenue)} totaal.`}
+        </div>
+      )}
 
       {/* Info */}
       <div className="bg-white rounded-xl border border-slate-200 p-6 mb-6">

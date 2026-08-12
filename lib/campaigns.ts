@@ -36,11 +36,18 @@ export async function sendCampaign(campaignId: number): Promise<{ sent: number; 
       const token = unsubscribeToken(recipient.email)
       const unsubscribeUrl = `${baseUrl}/uitschrijven?email=${encodeURIComponent(recipient.email)}&token=${token}`
 
-      const html = renderTemplate(campaign.template.bodyHtml, {
+      const renderedHtml = renderTemplate(campaign.template.bodyHtml, {
         firstName: recipient.firstName,
         email: recipient.email,
         unsubscribeUrl,
       })
+
+      // Tag all klompjes.com links with UTM params for campaign attribution
+      const utmParams = `utm_source=email&utm_medium=newsletter&utm_campaign=${encodeURIComponent(campaign.name)}&utm_content=campaign_${campaignId}`
+      const html = renderedHtml.replace(
+        /href="(https?:\/\/(?:www\.)?klompjes\.com[^"]*?)"/g,
+        (_, url) => `href="${url}${url.includes('?') ? '&' : '?'}${utmParams}"`
+      )
       const subject = renderTemplate(campaign.template.subject, {
         firstName: recipient.firstName,
         email: recipient.email,
