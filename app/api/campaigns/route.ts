@@ -6,7 +6,7 @@ import { z } from 'zod'
 const schema = z.object({
   name: z.string().min(1),
   templateId: z.number().int(),
-  segmentType: z.enum(['logo_buyer', 'inactive_3m', 'top_customers', 'list']),
+  segmentType: z.enum(['logo_buyer', 'repeat_buyer', 'inactive_3m', 'top_customers', 'list']),
   listId: z.number().int().nullable().optional(),
 })
 

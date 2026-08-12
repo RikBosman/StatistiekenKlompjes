@@ -4,9 +4,11 @@ import { getSegmentCustomers, SegmentType } from './segments'
 
 export function renderTemplate(html: string, customer: { firstName: string; email: string }): string {
   return html
+    .replace(/\{\{first_name\}\}/gi, customer.firstName || 'klant')
     .replace(/\{\{voornaam\}\}/gi, customer.firstName || 'klant')
-    .replace(/\{\{email\}\}/gi, customer.email)
+    .replace(/\{\{name\}\}/gi, customer.firstName || 'klant')
     .replace(/\{\{naam\}\}/gi, customer.firstName || 'klant')
+    .replace(/\{\{email\}\}/gi, customer.email)
 }
 
 export async function sendCampaign(campaignId: number): Promise<{ sent: number; failed: number }> {

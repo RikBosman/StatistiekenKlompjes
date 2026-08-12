@@ -24,6 +24,7 @@ interface SegmentInfo {
 
 const SEGMENTS: SegmentInfo[] = [
   { type: 'logo_buyer', label: 'Logo / tekst kopers', description: 'Klanten die een logo of tekst product hebben besteld' },
+  { type: 'repeat_buyer', label: 'Vaste klanten', description: 'Klanten met 2 of meer bestellingen' },
   { type: 'inactive_3m', label: 'Slapende klanten', description: 'Hebben 3+ maanden niets besteld — win ze terug' },
   { type: 'top_customers', label: 'Top klanten', description: 'Top 500 klanten op totale omzet' },
   { type: 'list', label: 'Handmatige lijst', description: 'Een zelf samengestelde lijst' },
