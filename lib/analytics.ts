@@ -1,5 +1,15 @@
 import { prisma } from './db'
-import { startOfMonth, subMonths, endOfMonth, subDays, startOfYear, differenceInMonths, getDaysInMonth } from 'date-fns'
+import { startOfMonth, subMonths, endOfMonth, subDays, startOfYear, differenceInMonths } from 'date-fns'
+
+async function getAdsDailyRate(): Promise<number> {
+  const setting = await prisma.settings.findUnique({ where: { key: 'ads_daily_rate' } })
+  return setting ? parseFloat(setting.value) : 0
+}
+
+function calcAdSpendForRange(dailyRate: number, since: Date, until: Date): number {
+  const days = Math.max(0, (until.getTime() - since.getTime()) / 86_400_000)
+  return dailyRate * days
+}
 
 export type ProductStatus = 'new_rising' | 'steady' | 'declining' | 'new_slow' | 'underperforming'
 
@@ -27,59 +37,6 @@ export function periodToRange(period = '30d'): { since: Date; until: Date; month
     case '1y':  return { since: subMonths(now, 12), until: now, months: 12, label: 'Laatste 12 maanden' }
     default:    return { since: subDays(now, 30),   until: now, months: 1,  label: 'Laatste 30 dagen' }
   }
-}
-
-// Load actual monthly Sendcloud costs stored as Settings keys: shipping_actual_YYYY-MM
-async function fetchActualMonthlyShipping(): Promise<Map<string, number>> {
-  const settings = await prisma.settings.findMany({
-    where: { key: { startsWith: 'shipping_actual_' } },
-  })
-  const map = new Map<string, number>()
-  for (const s of settings) {
-    const month = s.key.replace('shipping_actual_', '')
-    map.set(month, parseFloat(s.value))
-  }
-  return map
-}
-
-// Calculate shipping cost for a set of orders grouped by month.
-// For months with an actual Sendcloud cost: prorate by (days_in_period / days_in_month).
-// For months without: fall back to per-order estimate.
-function resolveShipping(
-  orders: Array<{ date: Date; shippingMethod?: string | null }>,
-  since: Date,
-  until: Date,
-  actualByMonth: Map<string, number>,
-): number {
-  // Group orders by month key
-  const byMonth = new Map<string, typeof orders>()
-  for (const o of orders) {
-    const mk = `${o.date.getFullYear()}-${String(o.date.getMonth() + 1).padStart(2, '0')}`
-    const list = byMonth.get(mk) ?? []
-    list.push(o)
-    byMonth.set(mk, list)
-  }
-
-  let total = 0
-  for (const [mk, monthOrders] of byMonth) {
-    const actual = actualByMonth.get(mk)
-    if (actual !== undefined) {
-      // Prorate the monthly invoice by days that fall within [since, until]
-      const [y, m] = mk.split('-').map(Number)
-      const monthStart = new Date(y, m - 1, 1)
-      const monthEnd = endOfMonth(monthStart)
-      const daysInMonth = getDaysInMonth(monthStart)
-      const periodStart = since > monthStart ? since : monthStart
-      const periodEnd = until < monthEnd ? until : monthEnd
-      const daysInPeriod = Math.max(0, (periodEnd.getTime() - periodStart.getTime()) / 86_400_000 + 1)
-      total += actual * (daysInPeriod / daysInMonth)
-    } else {
-      for (const o of monthOrders) {
-        total += calcActualShipping((o as { shippingMethod?: string | null }).shippingMethod)
-      }
-    }
-  }
-  return total
 }
 
 function calcActualShipping(method: string | null | undefined): number {
@@ -324,7 +281,7 @@ export async function getOverviewStats(period = '30d'): Promise<OverviewStats> {
 
   const { byId: cogsById, bySku: cogsBySku } = await buildCogsLookup()
 
-  const [orders, ordersPrev, totalCustomers, logoTekstCustomers, adSpendRows, actualShippingByMonth] = await Promise.all([
+  const [orders, ordersPrev, totalCustomers, logoTekstCustomers, adsDailyRate] = await Promise.all([
     prisma.order.findMany({
       where: { date: { gte: since, lte: until }, status: { notIn: ['cancelled', 'refunded'] } },
       include: { lineItems: true },
@@ -351,8 +308,7 @@ export async function getOverviewStats(period = '30d'): Promise<OverviewStats> {
         },
       },
     }),
-    prisma.adSpend.findMany({ where: { date: { gte: since, lte: until } } }),
-    fetchActualMonthlyShipping(),
+    getAdsDailyRate(),
   ])
 
   const totalRevenue = orders.reduce((s, o) => s + o.total, 0)
@@ -361,14 +317,15 @@ export async function getOverviewStats(period = '30d'): Promise<OverviewStats> {
   const shippingCharged = orders.reduce((s, o) => s + o.shippingTotal, 0)
 
   let cogs = 0
+  let actualShipping = 0
   for (const order of orders) {
+    actualShipping += calcActualShipping(order.shippingMethod)
     for (const item of order.lineItems) {
       cogs += lookupCogs(cogsById, cogsBySku, item.productId, item.sku) * item.quantity
     }
   }
 
-  const actualShipping = resolveShipping(orders, since, until, actualShippingByMonth)
-  const adSpend = adSpendRows.reduce((s, a) => s + a.spend, 0)
+  const adSpend = calcAdSpendForRange(adsDailyRate, since, until)
   const grossMargin = totalRevenue - cogs - actualShipping - adSpend
   const grossMarginPct = totalRevenue > 0 ? (grossMargin / totalRevenue) * 100 : 0
 
@@ -488,8 +445,10 @@ export async function getMarginData(period = '6m'): Promise<MarginData[]> {
   const { since, until, months } = periodToRange(period)
   const now = new Date()
 
-  const { byId: cogsById, bySku: cogsBySku } = await buildCogsLookup()
-  const actualShippingByMonth = await fetchActualMonthlyShipping()
+  const [{ byId: cogsById, bySku: cogsBySku }, adsDailyRate] = await Promise.all([
+    buildCogsLookup(),
+    getAdsDailyRate(),
+  ])
 
   const result: MarginData[] = []
 
@@ -506,33 +465,26 @@ export async function getMarginData(period = '6m'): Promise<MarginData[]> {
     const effectiveStart = monthStart > since ? monthStart : since
     const effectiveEnd = monthEnd < until ? monthEnd : until
 
-    const [orders, adSpendRows] = await Promise.all([
-      prisma.order.findMany({
-        where: {
-          date: { gte: effectiveStart, lte: effectiveEnd },
-          status: { notIn: ['cancelled', 'refunded'] },
-        },
-        include: { lineItems: true },
-      }),
-      prisma.adSpend.findMany({ where: { date: { gte: monthStart, lte: monthEnd } } }),
-    ])
+    const orders = await prisma.order.findMany({
+      where: {
+        date: { gte: effectiveStart, lte: effectiveEnd },
+        status: { notIn: ['cancelled', 'refunded'] },
+      },
+      include: { lineItems: true },
+    })
 
     const revenue = orders.reduce((s, o) => s + o.total, 0)
     const shippingCharged = orders.reduce((s, o) => s + o.shippingTotal, 0)
-    const adSpend = adSpendRows.reduce((s, a) => s + a.spend, 0)
+    const adSpend = calcAdSpendForRange(adsDailyRate, effectiveStart, effectiveEnd)
 
     let cogs = 0
+    let actualShipping = 0
     for (const order of orders) {
+      actualShipping += calcActualShipping(order.shippingMethod)
       for (const item of order.lineItems) {
         cogs += lookupCogs(cogsById, cogsBySku, item.productId, item.sku) * item.quantity
       }
     }
-
-    // Use actual Sendcloud cost for this month if available, otherwise per-order estimate
-    const actualMonthCost = actualShippingByMonth.get(mk)
-    const actualShipping = actualMonthCost !== undefined
-      ? actualMonthCost
-      : orders.reduce((s, o) => s + calcActualShipping(o.shippingMethod), 0)
 
     const grossMargin = revenue - cogs - actualShipping - adSpend
     const grossMarginPct = revenue > 0 ? (grossMargin / revenue) * 100 : 0

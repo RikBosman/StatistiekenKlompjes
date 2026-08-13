@@ -107,7 +107,7 @@ export default async function DashboardPage({
           <p className="text-xs text-orange-600 uppercase tracking-wide font-medium mb-3">Google Ads kosten</p>
           <p className="text-2xl font-bold text-orange-700">{formatCurrency(stats!.adSpend)}</p>
           <p className="text-xs text-orange-400 mt-1">
-            {stats!.adSpend > 0 ? `In geselecteerde periode` : 'Nog geen data ingevoerd'}
+            {stats!.adSpend > 0 ? `Periode totaal` : <a href="/dashboard/ads" className="underline">Dagbudget instellen →</a>}
           </p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-5">
