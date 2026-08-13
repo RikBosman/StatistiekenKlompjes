@@ -99,6 +99,7 @@ export interface ProductPerformance {
   createdAt: Date
   isNew: boolean
   status: ProductStatus
+  stockStatus: string
   monthlySales: MonthlyData[]
   forecastNextMonth: number
   totalUnitsPeriod: number
@@ -235,6 +236,7 @@ export async function getProductPerformance(period = '30d'): Promise<ProductPerf
       createdAt: p.createdAt,
       isNew,
       status,
+      stockStatus: p.stockStatus,
       monthlySales,
       forecastNextMonth: Math.round(forecast),
       totalUnitsPeriod,

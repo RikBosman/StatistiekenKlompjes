@@ -5,6 +5,7 @@ export interface WCProduct {
   name: string
   sku: string
   status: string
+  stock_status: string // instock | outofstock | onbackorder
   date_created: string
   price: string
   permalink: string

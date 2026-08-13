@@ -18,6 +18,7 @@ model Product {
   firstOrderDate DateTime?
   createdAt      DateTime
   status         String
+  stockStatus    String   @default("instock") // instock | outofstock | onbackorder
   categories     String   // JSON array of category names
   tags           String   @default("[]") // JSON array of tag names (leveranciers)
   syncedAt       DateTime @default(now())

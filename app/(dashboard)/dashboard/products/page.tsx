@@ -24,9 +24,9 @@ const statusColor: Record<ProductStatus, string> = {
 export default async function ProductsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ filter?: string; q?: string; period?: string; sort?: string }>
+  searchParams: Promise<{ filter?: string; q?: string; period?: string; sort?: string; stock?: string }>
 }) {
-  const { period = '30d', filter, q, sort } = await searchParams
+  const { period = '30d', filter, q, sort, stock } = await searchParams
   const { label: periodLabel } = periodToRange(period)
 
   let products = null
@@ -60,19 +60,22 @@ export default async function ProductsPage({
 
   const activeFilter = filter ?? 'all'
   const activeSort = sort ?? 'status'
+  const activeStock = stock ?? 'all'
   const query = (q ?? '').toLowerCase()
 
   // Extra search params to preserve when switching period
   const extraParams = [
     activeFilter !== 'all' ? `&filter=${activeFilter}` : '',
+    activeStock !== 'all' ? `&stock=${activeStock}` : '',
     query ? `&q=${query}` : '',
     activeSort !== 'status' ? `&sort=${activeSort}` : '',
   ].join('')
 
   const filtered = products.filter((p) => {
     const matchesFilter = activeFilter === 'all' || p.status === activeFilter
+    const matchesStock = activeStock === 'all' || p.stockStatus === activeStock
     const matchesQuery = !query || p.name.toLowerCase().includes(query) || (p.sku ?? '').toLowerCase().includes(query)
-    return matchesFilter && matchesQuery
+    return matchesFilter && matchesStock && matchesQuery
   })
 
   let sorted: typeof filtered
@@ -92,6 +95,11 @@ export default async function ProductsPage({
 
   const counts = products.reduce((acc, p) => {
     acc[p.status] = (acc[p.status] || 0) + 1
+    return acc
+  }, {} as Record<string, number>)
+
+  const stockCounts = products.reduce((acc, p) => {
+    acc[p.stockStatus] = (acc[p.stockStatus] || 0) + 1
     return acc
   }, {} as Record<string, number>)
 
@@ -156,7 +164,7 @@ export default async function ProductsPage({
             {filterItems.map((f) => (
               <a
                 key={f.key}
-                href={`?filter=${f.key}&period=${period}${query ? `&q=${query}` : ''}${activeSort !== 'status' ? `&sort=${activeSort}` : ''}`}
+                href={`?filter=${f.key}&period=${period}&stock=${activeStock}${query ? `&q=${query}` : ''}${activeSort !== 'status' ? `&sort=${activeSort}` : ''}`}
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                   activeFilter === f.key
                     ? 'bg-brand-600 text-white'
@@ -164,6 +172,29 @@ export default async function ProductsPage({
                 }`}
               >
                 {f.label}
+              </a>
+            ))}
+          </div>
+          <div className="flex gap-1 border-l border-slate-200 pl-3">
+            {[
+              { key: 'all', label: `Alle voorraad` },
+              { key: 'instock', label: `Op voorraad (${stockCounts['instock'] ?? 0})`, color: 'green' },
+              { key: 'outofstock', label: `Uitverkocht (${stockCounts['outofstock'] ?? 0})`, color: 'red' },
+              { key: 'onbackorder', label: `Nabestelling (${stockCounts['onbackorder'] ?? 0})`, color: 'amber' },
+            ].map((s) => (
+              <a
+                key={s.key}
+                href={`?stock=${s.key}&period=${period}&filter=${activeFilter}${query ? `&q=${query}` : ''}${activeSort !== 'status' ? `&sort=${activeSort}` : ''}`}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                  activeStock === s.key
+                    ? s.color === 'green' ? 'bg-green-600 text-white'
+                      : s.color === 'red' ? 'bg-red-600 text-white'
+                      : s.color === 'amber' ? 'bg-amber-500 text-white'
+                      : 'bg-slate-800 text-white'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                {s.label}
               </a>
             ))}
           </div>
@@ -215,7 +246,15 @@ export default async function ProductsPage({
               ) : sorted.map((p) => (
                 <tr key={p.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
                   <td className="px-6 py-3">
-                    <p className="font-medium text-slate-900 truncate max-w-xs">{p.name}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium text-slate-900 truncate max-w-xs">{p.name}</p>
+                      {p.stockStatus === 'outofstock' && (
+                        <span className="shrink-0 px-1.5 py-0.5 bg-red-100 text-red-700 rounded text-xs font-medium">uitverkocht</span>
+                      )}
+                      {p.stockStatus === 'onbackorder' && (
+                        <span className="shrink-0 px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded text-xs font-medium">nabestelling</span>
+                      )}
+                    </div>
                     {p.sku && <p className="text-xs text-slate-400 font-mono">{p.sku}</p>}
                   </td>
                   <td className="px-4 py-3">
