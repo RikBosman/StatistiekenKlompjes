@@ -84,8 +84,8 @@ export default async function DashboardPage({
         />
       </div>
 
-      {/* KPI row 2: cost breakdown + ROAS */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
+      {/* KPI row 2: cost breakdown + ROAS + bruto marge */}
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-4 mb-4">
         <div className="bg-white rounded-xl border border-slate-200 p-5">
           <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-3">Klanten totaal</p>
           <p className="text-2xl font-bold text-slate-900">{stats!.totalCustomers.toLocaleString('nl-NL')}</p>
@@ -95,6 +95,13 @@ export default async function DashboardPage({
           <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-3">Inkoopkosten</p>
           <p className="text-2xl font-bold text-slate-900">{formatCurrency(stats!.cogs)}</p>
           <p className="text-xs text-slate-400 mt-1">Product COGS</p>
+        </div>
+        <div className={`rounded-xl border p-5 ${stats!.grossMargin >= 0 ? 'bg-white border-slate-200' : 'bg-red-50 border-red-200'}`}>
+          <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-3">Bruto marge (€)</p>
+          <p className={`text-2xl font-bold ${stats!.grossMargin >= 0 ? 'text-slate-900' : 'text-red-700'}`}>
+            {formatCurrency(stats!.grossMargin)}
+          </p>
+          <p className="text-xs text-slate-400 mt-1">{stats!.grossMarginPct.toFixed(1)}% marge</p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-5">
           <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-3">Verzendkosten (werkelijk)</p>
