@@ -94,7 +94,16 @@ export async function syncOrders(afterDate?: string, beforeDate?: string): Promi
             // Registered WooCommerce account
             const byId = await prisma.customer.findUnique({ where: { id: o.customer_id } })
             if (byId) {
-              // Already known — just update name/email
+              // If this email belongs to a different record (e.g. a guest), free it up first
+              if (byId.email !== customerEmail) {
+                const conflict = await prisma.customer.findUnique({ where: { email: customerEmail } })
+                if (conflict && conflict.id !== byId.id) {
+                  await prisma.customer.update({
+                    where: { id: conflict.id },
+                    data: { email: `guest_${conflict.id}@merged.local` },
+                  })
+                }
+              }
               customer = await prisma.customer.update({
                 where: { id: o.customer_id },
                 data: {
