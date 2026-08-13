@@ -1,32 +1,6 @@
-import nodemailer from 'nodemailer'
-import type { Transporter } from 'nodemailer'
+import axios from 'axios'
 
-let transporter: Transporter | null = null
-
-function getTransporter(): Transporter {
-  if (!transporter) {
-    const host = process.env.SMTP_HOST
-    const port = parseInt(process.env.SMTP_PORT || '587', 10)
-    const user = process.env.SMTP_USER
-    const pass = process.env.SMTP_PASS
-
-    if (!host || !user || !pass) {
-      throw new Error('SMTP niet geconfigureerd — stel SMTP_HOST, SMTP_USER en SMTP_PASS in')
-    }
-
-    transporter = nodemailer.createTransport({
-      host,
-      port,
-      secure: port === 465,
-      auth: { user, pass },
-      pool: true,
-      maxConnections: 5,
-      rateDelta: 1000,
-      rateLimit: 10,
-    })
-  }
-  return transporter
-}
+const BULK_URL = 'https://bulk.api.mailtrap.io/api/send'
 
 export interface SendEmailOptions {
   to: string
@@ -36,15 +10,27 @@ export interface SendEmailOptions {
 }
 
 export async function sendEmail({ to, toName, subject, html }: SendEmailOptions) {
-  const transport = getTransporter()
+  const token = process.env.MAILTRAP_API_TOKEN
+  const fromEmail = process.env.MAILTRAP_FROM_EMAIL
+  const fromName = process.env.MAILTRAP_FROM_NAME || 'Klompjes'
 
-  const fromEmail = process.env.SMTP_FROM_EMAIL || ''
-  const fromName = process.env.SMTP_FROM_NAME || 'Klompjes'
+  if (!token || !fromEmail) {
+    throw new Error('MAILTRAP_API_TOKEN en MAILTRAP_FROM_EMAIL zijn vereist')
+  }
 
-  await transport.sendMail({
-    from: `"${fromName}" <${fromEmail}>`,
-    to: toName ? `"${toName}" <${to}>` : to,
-    subject,
-    html,
-  })
+  await axios.post(
+    BULK_URL,
+    {
+      from: { email: fromEmail, name: fromName },
+      to: [{ email: to, name: toName || to }],
+      subject,
+      html,
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    },
+  )
 }
