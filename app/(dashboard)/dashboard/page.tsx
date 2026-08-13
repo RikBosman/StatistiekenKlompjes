@@ -104,10 +104,10 @@ export default async function DashboardPage({
           <p className="text-xs text-slate-400 mt-1">{stats!.grossMarginPct.toFixed(1)}% marge</p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-5">
-          <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-3">Verzendkosten (werkelijk)</p>
-          <p className="text-2xl font-bold text-slate-900">{formatCurrency(stats!.actualShipping)}</p>
+          <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-3">Verzend + verpakking</p>
+          <p className="text-2xl font-bold text-slate-900">{formatCurrency(stats!.actualShipping + stats!.packagingCost)}</p>
           <p className="text-xs text-slate-400 mt-1">
-            Klant betaalde {formatCurrency(stats!.shippingCharged)}
+            Verzending {formatCurrency(stats!.actualShipping)} · verpakking {formatCurrency(stats!.packagingCost)}
           </p>
         </div>
         <div className="bg-orange-50 rounded-xl border border-orange-200 p-5">

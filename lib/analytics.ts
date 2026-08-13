@@ -15,8 +15,15 @@ export type ProductStatus = 'new_rising' | 'steady' | 'declining' | 'new_slow' |
 
 const LETTERBOX_COST = parseFloat(process.env.LETTERBOX_SHIPPING_COST ?? '4.20')
 const PARCEL_COST = parseFloat(process.env.PARCEL_SHIPPING_COST ?? '6.85')
-// Default rate for orders without a known shipping method (assume cheapest = letterbox)
 const DEFAULT_SHIPPING_COST = parseFloat(process.env.DEFAULT_SHIPPING_COST ?? process.env.LETTERBOX_SHIPPING_COST ?? '4.20')
+
+const LETTERBOX_PACKAGING_COST = parseFloat(process.env.LETTERBOX_PACKAGING_COST ?? '0.30')
+const PARCEL_PACKAGING_COST = parseFloat(process.env.PARCEL_PACKAGING_COST ?? '0.80')
+
+function calcPackagingCost(method: string | null | undefined): number {
+  if (!method) return LETTERBOX_PACKAGING_COST
+  return method.toLowerCase().includes('brievenbus') ? LETTERBOX_PACKAGING_COST : PARCEL_PACKAGING_COST
+}
 
 export function periodToRange(period = '30d'): { since: Date; until: Date; months: number; label: string } {
   const now = new Date()
@@ -262,6 +269,7 @@ export interface OverviewStats {
   cogs: number
   shippingCharged: number
   actualShipping: number
+  packagingCost: number
   adSpend: number
   grossMargin: number
   grossMarginPct: number
@@ -325,15 +333,17 @@ export async function getOverviewStats(period = '30d'): Promise<OverviewStats> {
 
   let cogs = 0
   let actualShipping = 0
+  let packagingCost = 0
   for (const order of orders) {
     actualShipping += calcActualShipping(order.shippingMethod)
+    packagingCost += calcPackagingCost(order.shippingMethod)
     for (const item of order.lineItems) {
       cogs += lookupCogs(cogsById, cogsBySku, item.productId, item.sku) * item.quantity
     }
   }
 
   const adSpend = calcAdSpendForRange(adsDailyRate, since, until)
-  const grossMargin = totalRevenue - cogs - actualShipping - adSpend
+  const grossMargin = totalRevenue - cogs - actualShipping - packagingCost - adSpend
   const grossMarginPct = totalRevenue > 0 ? (grossMargin / totalRevenue) * 100 : 0
   const roas = adSpend > 0 ? totalRevenue / adSpend : null
 
@@ -383,6 +393,7 @@ export async function getOverviewStats(period = '30d'): Promise<OverviewStats> {
     cogs,
     shippingCharged,
     actualShipping,
+    packagingCost,
     adSpend,
     grossMargin,
     grossMarginPct,
@@ -524,14 +535,16 @@ export async function getMarginData(period = '6m'): Promise<MarginData[]> {
 
     let cogs = 0
     let actualShipping = 0
+    let packagingCost = 0
     for (const order of orders) {
       actualShipping += calcActualShipping(order.shippingMethod)
+      packagingCost += calcPackagingCost(order.shippingMethod)
       for (const item of order.lineItems) {
         cogs += lookupCogs(cogsById, cogsBySku, item.productId, item.sku) * item.quantity
       }
     }
 
-    const grossMargin = revenue - cogs - actualShipping - adSpend
+    const grossMargin = revenue - cogs - actualShipping - packagingCost - adSpend
     const grossMarginPct = revenue > 0 ? (grossMargin / revenue) * 100 : 0
 
     result.push({ month: mk, revenue, shippingCharged, actualShipping, cogs, adSpend, grossMargin, grossMarginPct })
