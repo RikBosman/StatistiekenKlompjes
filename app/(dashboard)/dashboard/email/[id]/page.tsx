@@ -49,6 +49,11 @@ export default async function CampaignDetailPage({ params }: { params: Promise<{
     top_customers: 'Top klanten',
     repeat_buyer: 'Vaste klanten',
     list: campaign.list?.name ?? 'Handmatige lijst',
+    emmer_buyer: 'Emmer kopers',
+    glaswerk_buyer: 'Glaswerk kopers',
+    gravering_buyer: 'Gravering kopers',
+    klompen_logo_buyer: 'Klompen met logo/tekst kopers',
+    tulp_buyer: 'Tulpen kopers',
   }
 
   return (

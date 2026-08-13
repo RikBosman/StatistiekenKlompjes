@@ -23,6 +23,11 @@ interface SegmentInfo {
 }
 
 const SEGMENTS: SegmentInfo[] = [
+  { type: 'emmer_buyer', label: 'Emmer kopers', description: 'Klanten die een emmer hebben besteld' },
+  { type: 'glaswerk_buyer', label: 'Glaswerk kopers', description: 'Klanten die aperol glas, bierglas, bierpul, champagneglas e.d. hebben besteld' },
+  { type: 'gravering_buyer', label: 'Gravering kopers', description: 'Klanten die een product met gravering hebben besteld' },
+  { type: 'klompen_logo_buyer', label: 'Klompen met logo/tekst kopers', description: 'Klanten die klompen met logo of tekst hebben besteld' },
+  { type: 'tulp_buyer', label: 'Tulpen kopers', description: 'Klanten die tulpenpennen of andere tulpenproducten hebben besteld' },
   { type: 'logo_buyer', label: 'Logo / tekst kopers', description: 'Klanten die een logo of tekst product hebben besteld' },
   { type: 'repeat_buyer', label: 'Vaste klanten', description: 'Klanten met 2 of meer bestellingen' },
   { type: 'inactive_3m', label: 'Slapende klanten', description: 'Hebben 3+ maanden niets besteld — win ze terug' },

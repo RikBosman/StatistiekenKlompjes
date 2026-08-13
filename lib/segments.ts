@@ -1,7 +1,17 @@
 import { prisma } from './db'
 import { subMonths } from 'date-fns'
 
-export type SegmentType = 'logo_buyer' | 'inactive_3m' | 'top_customers' | 'repeat_buyer' | 'list'
+export type SegmentType =
+  | 'logo_buyer'
+  | 'inactive_3m'
+  | 'top_customers'
+  | 'repeat_buyer'
+  | 'list'
+  | 'emmer_buyer'
+  | 'glaswerk_buyer'
+  | 'gravering_buyer'
+  | 'klompen_logo_buyer'
+  | 'tulp_buyer'
 
 export interface SegmentCustomer {
   id: number
@@ -33,17 +43,16 @@ export async function getSegmentCustomers(
       select: { order: { select: { status: true, customerId: true, date: true } } },
     })
 
-    const customerIds = [
-      ...new Set(
+    const customerIds = Array.from(
+      new Set(
         items
           .filter((i) => validOrder(i.order.status) && i.order.customerId !== null)
           .map((i) => i.order.customerId as number)
-      ),
-    ]
+      )
+    )
 
     if (customerIds.length === 0) return []
 
-    // Prisma can batch 'in' queries — safe even with many IDs
     const customers = await prisma.customer.findMany({
       where: { id: { in: customerIds } },
       include: {
@@ -136,6 +145,101 @@ export async function getSegmentCustomers(
       .sort((a, b) => b.orderCount - a.orderCount)
   }
 
+  // Generic keyword-based product segment helper
+  async function keywordSegment(keywords: string[]): Promise<SegmentCustomer[]> {
+    const items = await prisma.orderItem.findMany({
+      where: { OR: keywords.map((k) => ({ name: { contains: k } })) },
+      select: { order: { select: { status: true, customerId: true, date: true } } },
+    })
+    const customerIds = Array.from(
+      new Set(
+        items
+          .filter((i) => validOrder(i.order.status) && i.order.customerId !== null)
+          .map((i) => i.order.customerId as number)
+      )
+    )
+    if (customerIds.length === 0) return []
+    const customers = await prisma.customer.findMany({
+      where: { id: { in: customerIds } },
+      include: {
+        orders: { orderBy: { date: 'desc' }, take: 1, select: { date: true, status: true } },
+      },
+    })
+    return customers.map((c) => ({
+      id: c.id,
+      email: c.email,
+      firstName: c.firstName,
+      lastName: c.lastName,
+      lastOrderDate: c.orders[0]?.date,
+    }))
+  }
+
+  if (segmentType === 'emmer_buyer') {
+    return keywordSegment(['emmer'])
+  }
+
+  if (segmentType === 'glaswerk_buyer') {
+    return keywordSegment([
+      'aperol glas',
+      'bier glas',
+      'bierglas',
+      'speciaalbier glas',
+      'speciaalbier',
+      'bierpul',
+      'champagneglas',
+      'champagne glas',
+    ])
+  }
+
+  if (segmentType === 'gravering_buyer') {
+    return keywordSegment(['gravering'])
+  }
+
+  if (segmentType === 'klompen_logo_buyer') {
+    // Must contain 'klompen' AND ('logo' OR 'tekst') — broad fetch then JS filter
+    const items = await prisma.orderItem.findMany({
+      where: { name: { contains: 'klompen' } },
+      select: { name: true, orderId: true },
+    })
+    const matchingOrderIds = Array.from(
+      new Set(
+        items
+          .filter((i) => i.name.toLowerCase().includes('logo') || i.name.toLowerCase().includes('tekst'))
+          .map((i) => i.orderId)
+      )
+    )
+    if (matchingOrderIds.length === 0) return []
+    const orders = await prisma.order.findMany({
+      where: { id: { in: matchingOrderIds } },
+      select: { status: true, customerId: true },
+    })
+    const customerIds = Array.from(
+      new Set(
+        orders
+          .filter((o) => validOrder(o.status) && o.customerId !== null)
+          .map((o) => o.customerId as number)
+      )
+    )
+    if (customerIds.length === 0) return []
+    const customers = await prisma.customer.findMany({
+      where: { id: { in: customerIds } },
+      include: {
+        orders: { orderBy: { date: 'desc' }, take: 1, select: { date: true, status: true } },
+      },
+    })
+    return customers.map((c) => ({
+      id: c.id,
+      email: c.email,
+      firstName: c.firstName,
+      lastName: c.lastName,
+      lastOrderDate: c.orders[0]?.date,
+    }))
+  }
+
+  if (segmentType === 'tulp_buyer') {
+    return keywordSegment(['tulp'])
+  }
+
   if (segmentType === 'list' && listId) {
     const members = await prisma.customerListMember.findMany({
       where: { listId },
@@ -159,6 +263,11 @@ export function segmentLabel(type: SegmentType): string {
     top_customers: 'Top klanten (op omzet)',
     repeat_buyer: 'Vaste klanten (2+ bestellingen)',
     list: 'Handmatige lijst',
+    emmer_buyer: 'Emmer kopers',
+    glaswerk_buyer: 'Glaswerk kopers',
+    gravering_buyer: 'Gravering kopers',
+    klompen_logo_buyer: 'Klompen met logo/tekst kopers',
+    tulp_buyer: 'Tulpen kopers',
   }
   return labels[type]
 }
