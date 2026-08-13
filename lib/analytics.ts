@@ -241,6 +241,7 @@ export interface OverviewStats {
   cogs: number
   shippingCharged: number
   actualShipping: number
+  adSpend: number
   grossMargin: number
   grossMarginPct: number
   revenueTrend: number
@@ -261,7 +262,7 @@ export async function getOverviewStats(period = '30d'): Promise<OverviewStats> {
 
   const { byId: cogsById, bySku: cogsBySku } = await buildCogsLookup()
 
-  const [orders, ordersPrev, totalCustomers, logoTekstCustomers] = await Promise.all([
+  const [orders, ordersPrev, totalCustomers, logoTekstCustomers, adSpendRows] = await Promise.all([
     prisma.order.findMany({
       where: { date: { gte: since }, status: { notIn: ['cancelled', 'refunded'] } },
       include: { lineItems: true },
@@ -288,6 +289,7 @@ export async function getOverviewStats(period = '30d'): Promise<OverviewStats> {
         },
       },
     }),
+    prisma.adSpend.findMany({ where: { date: { gte: since } } }),
   ])
 
   const totalRevenue = orders.reduce((s, o) => s + o.total, 0)
@@ -304,7 +306,8 @@ export async function getOverviewStats(period = '30d'): Promise<OverviewStats> {
     }
   }
 
-  const grossMargin = totalRevenue - cogs - actualShipping
+  const adSpend = adSpendRows.reduce((s, a) => s + a.spend, 0)
+  const grossMargin = totalRevenue - cogs - actualShipping - adSpend
   const grossMarginPct = totalRevenue > 0 ? (grossMargin / totalRevenue) * 100 : 0
 
   const prevRevenue = ordersPrev.reduce((s, o) => s + o.total, 0)
@@ -321,6 +324,7 @@ export async function getOverviewStats(period = '30d'): Promise<OverviewStats> {
     cogs,
     shippingCharged,
     actualShipping,
+    adSpend,
     grossMargin,
     grossMarginPct,
     revenueTrend: pct(totalRevenue, prevRevenue),

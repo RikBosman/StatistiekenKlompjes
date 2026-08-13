@@ -85,7 +85,7 @@ export default async function DashboardPage({
       </div>
 
       {/* KPI row 2: cost breakdown */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
         <div className="bg-white rounded-xl border border-slate-200 p-5">
           <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-3">Klanten totaal</p>
           <p className="text-2xl font-bold text-slate-900">{stats!.totalCustomers.toLocaleString('nl-NL')}</p>
@@ -103,12 +103,19 @@ export default async function DashboardPage({
             Klant betaalde {formatCurrency(stats!.shippingCharged)}
           </p>
         </div>
+        <div className="bg-orange-50 rounded-xl border border-orange-200 p-5">
+          <p className="text-xs text-orange-600 uppercase tracking-wide font-medium mb-3">Google Ads kosten</p>
+          <p className="text-2xl font-bold text-orange-700">{formatCurrency(stats!.adSpend)}</p>
+          <p className="text-xs text-orange-400 mt-1">
+            {stats!.adSpend > 0 ? `In geselecteerde periode` : 'Nog geen data ingevoerd'}
+          </p>
+        </div>
         <div className="bg-white rounded-xl border border-slate-200 p-5">
           <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-3">Bruto marge (€)</p>
           <p className={`text-2xl font-bold ${stats!.grossMargin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
             {formatCurrency(stats!.grossMargin)}
           </p>
-          <p className="text-xs text-slate-400 mt-1">Omzet − inkoop − verzending</p>
+          <p className="text-xs text-slate-400 mt-1">Omzet − inkoop − verzending − ads</p>
         </div>
       </div>
 
