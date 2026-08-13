@@ -8,7 +8,7 @@ export const revalidate = 0
 export default async function EmailPage() {
   const cutoff3m = subMonths(new Date(), 3)
 
-  const [campaigns, templates, lists, logoBuyerCount, inactiveCount, repeatGroups] = await Promise.all([
+  const [campaigns, templates, lists, logoBuyerCount, inactiveCount, repeatGroups, emmerCount, glaswerkCount, graveringCount, tulpCount] = await Promise.all([
     prisma.campaign.findMany({
       orderBy: { createdAt: 'desc' },
       include: {
@@ -53,6 +53,37 @@ export default async function EmailPage() {
       _count: { id: true },
       having: { id: { _count: { gte: 2 } } },
     }),
+    prisma.customer.count({
+      where: { orders: { some: { status: { notIn: ['cancelled', 'refunded'] }, lineItems: { some: { name: { contains: 'emmer' } } } } } },
+    }),
+    prisma.customer.count({
+      where: {
+        orders: {
+          some: {
+            status: { notIn: ['cancelled', 'refunded'] },
+            lineItems: {
+              some: {
+                OR: [
+                  { name: { contains: 'aperol glas' } },
+                  { name: { contains: 'bier glas' } },
+                  { name: { contains: 'bierglas' } },
+                  { name: { contains: 'speciaalbier' } },
+                  { name: { contains: 'bierpul' } },
+                  { name: { contains: 'champagneglas' } },
+                  { name: { contains: 'champagne glas' } },
+                ],
+              },
+            },
+          },
+        },
+      },
+    }),
+    prisma.customer.count({
+      where: { orders: { some: { status: { notIn: ['cancelled', 'refunded'] }, lineItems: { some: { name: { contains: 'gravering' } } } } } },
+    }),
+    prisma.customer.count({
+      where: { orders: { some: { status: { notIn: ['cancelled', 'refunded'] }, lineItems: { some: { name: { contains: 'tulp' } } } } } },
+    }),
   ])
 
   const repeatBuyerCount = repeatGroups.length
@@ -62,7 +93,66 @@ export default async function EmailPage() {
     where: { orders: { some: { status: { notIn: ['cancelled', 'refunded'] }, total: { gt: 0 } } } },
   })
 
-  const smartLists = [
+  // Klompen logo/tekst: fetch items with 'klompen', filter logo/tekst in JS
+  const klompenItems = await prisma.orderItem.findMany({
+    where: { name: { contains: 'klompen' } },
+    select: { name: true, orderId: true },
+  })
+  const klompenOrderIds = Array.from(
+    new Set(
+      klompenItems
+        .filter((i) => i.name.toLowerCase().includes('logo') || i.name.toLowerCase().includes('tekst'))
+        .map((i) => i.orderId)
+    )
+  )
+  let klompenLogoCount = 0
+  if (klompenOrderIds.length > 0) {
+    const klompenOrders = await prisma.order.findMany({
+      where: { id: { in: klompenOrderIds }, status: { notIn: ['cancelled', 'refunded'] } },
+      select: { customerId: true },
+    })
+    klompenLogoCount = new Set(klompenOrders.map((o) => o.customerId).filter(Boolean)).size
+  }
+
+  const productSegments = [
+    {
+      key: 'emmer_buyer',
+      label: 'Emmer kopers',
+      description: 'Emmer in productnaam',
+      count: emmerCount,
+      color: 'teal',
+    },
+    {
+      key: 'glaswerk_buyer',
+      label: 'Glaswerk kopers',
+      description: 'Bier-, wijn- of champagneglas / bierpul',
+      count: glaswerkCount,
+      color: 'cyan',
+    },
+    {
+      key: 'gravering_buyer',
+      label: 'Gravering kopers',
+      description: 'Gravering in productnaam',
+      count: graveringCount,
+      color: 'rose',
+    },
+    {
+      key: 'klompen_logo_buyer',
+      label: 'Klompen logo/tekst',
+      description: 'Klompen met logo of tekst',
+      count: klompenLogoCount,
+      color: 'indigo',
+    },
+    {
+      key: 'tulp_buyer',
+      label: 'Tulpen kopers',
+      description: 'Tulp in productnaam',
+      count: tulpCount,
+      color: 'pink',
+    },
+  ]
+
+  const behaviorSegments = [
     {
       key: 'logo_buyer',
       label: 'Logo / tekst kopers',
@@ -98,12 +188,22 @@ export default async function EmailPage() {
     green: 'bg-green-50 border-green-200 text-green-700',
     amber: 'bg-amber-50 border-amber-200 text-amber-700',
     purple: 'bg-purple-50 border-purple-200 text-purple-700',
+    teal: 'bg-teal-50 border-teal-200 text-teal-700',
+    cyan: 'bg-cyan-50 border-cyan-200 text-cyan-700',
+    rose: 'bg-rose-50 border-rose-200 text-rose-700',
+    indigo: 'bg-indigo-50 border-indigo-200 text-indigo-700',
+    pink: 'bg-pink-50 border-pink-200 text-pink-700',
   }
   const countColorMap: Record<string, string> = {
     blue: 'text-blue-900',
     green: 'text-green-900',
     amber: 'text-amber-900',
     purple: 'text-purple-900',
+    teal: 'text-teal-900',
+    cyan: 'text-cyan-900',
+    rose: 'text-rose-900',
+    indigo: 'text-indigo-900',
+    pink: 'text-pink-900',
   }
 
   const segmentLabels: Record<string, string> = {
@@ -112,6 +212,11 @@ export default async function EmailPage() {
     top_customers: 'Top klanten',
     repeat_buyer: 'Vaste klanten',
     list: 'Handmatige lijst',
+    emmer_buyer: 'Emmer kopers',
+    glaswerk_buyer: 'Glaswerk kopers',
+    gravering_buyer: 'Gravering kopers',
+    klompen_logo_buyer: 'Klompen logo/tekst',
+    tulp_buyer: 'Tulpen kopers',
   }
 
   const statusBadge = (status: string) => {
@@ -138,8 +243,23 @@ export default async function EmailPage() {
       {/* Smart lists */}
       <div className="mb-8">
         <h3 className="font-semibold text-slate-900 mb-3">Automatische klantenlijsten</h3>
+        <p className="text-xs text-slate-400 uppercase tracking-wide font-medium mb-2">Op besteld product</p>
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
+          {productSegments.map((seg) => (
+            <Link
+              key={seg.key}
+              href={`/dashboard/email/segments/${seg.key}`}
+              className={`rounded-xl border p-5 hover:shadow-sm transition-shadow ${colorMap[seg.color]}`}
+            >
+              <p className={`text-3xl font-bold mb-1 ${countColorMap[seg.color]}`}>{seg.count}</p>
+              <p className="font-semibold text-sm mb-1">{seg.label}</p>
+              <p className="text-xs opacity-70">{seg.description}</p>
+            </Link>
+          ))}
+        </div>
+        <p className="text-xs text-slate-400 uppercase tracking-wide font-medium mb-2">Op klantgedrag</p>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {smartLists.map((seg) => (
+          {behaviorSegments.map((seg) => (
             <Link
               key={seg.key}
               href={`/dashboard/email/segments/${seg.key}`}
