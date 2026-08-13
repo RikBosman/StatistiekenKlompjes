@@ -132,11 +132,12 @@ export default async function MarginsPage({
 
       {/* Shipping cost note */}
       <div className="mt-6 bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-700">
-        <strong>Verzendtarieven:</strong> Brievenbuspakket {' '}
-        <strong>€{parseFloat(process.env.LETTERBOX_SHIPPING_COST ?? '4.20').toFixed(2)}</strong>
-        {' '}— Pakket{' '}
-        <strong>€{parseFloat(process.env.PARCEL_SHIPPING_COST ?? '6.85').toFixed(2)}</strong>.
-        {' '}Methode wordt opgeslagen bij nieuwe sync. Stel <code>LETTERBOX_SHIPPING_COST</code> en <code>PARCEL_SHIPPING_COST</code> in via .env om de tarieven aan te passen.
+        <strong>Verzendkosten:</strong>{' '}
+        Voer de werkelijke Sendcloud factuurbedragen per maand in via{' '}
+        <a href="/dashboard/ads" className="underline font-medium">Kosten</a>.
+        {' '}Wanneer een maand is ingevoerd, wordt het factuurbedrag gebruikt in plaats van de schatting
+        (brievenbus €{parseFloat(process.env.LETTERBOX_SHIPPING_COST ?? '4.20').toFixed(2)} /
+        pakket €{parseFloat(process.env.PARCEL_SHIPPING_COST ?? '6.85').toFixed(2)}).
       </div>
     </div>
   )

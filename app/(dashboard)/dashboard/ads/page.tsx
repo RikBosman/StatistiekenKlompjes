@@ -2,16 +2,29 @@ import { prisma } from '@/lib/db'
 import { formatCurrency } from '@/lib/utils'
 import AdSpendForm from './AdSpendForm'
 import DeleteAdSpendButton from './DeleteAdSpendButton'
+import ShippingCostForm from './ShippingCostForm'
 import { subDays } from 'date-fns'
 
 export const revalidate = 0
 
 export default async function AdsPage() {
   const since = subDays(new Date(), 90)
-  const rows = await prisma.adSpend.findMany({
-    where: { date: { gte: since } },
-    orderBy: { date: 'desc' },
-  })
+
+  const [rows, shippingSettings] = await Promise.all([
+    prisma.adSpend.findMany({
+      where: { date: { gte: since } },
+      orderBy: { date: 'desc' },
+    }),
+    prisma.settings.findMany({
+      where: { key: { startsWith: 'shipping_actual_' } },
+      orderBy: { key: 'desc' },
+    }),
+  ])
+
+  const shippingRows = shippingSettings.map((s) => ({
+    month: s.key.replace('shipping_actual_', ''),
+    amount: parseFloat(s.value),
+  }))
 
   const totalSpend = rows.reduce((s, r) => s + r.spend, 0)
   const avgPerDay = rows.length > 0 ? totalSpend / rows.length : 0
@@ -19,8 +32,8 @@ export default async function AdsPage() {
   return (
     <div className="p-8">
       <div className="mb-6">
-        <h2 className="text-2xl font-bold text-slate-900">Google Ads kosten</h2>
-        <p className="text-slate-500 text-sm mt-1">Voer dagelijkse advertentiekosten in — wordt meegenomen in de bruto marge berekening</p>
+        <h2 className="text-2xl font-bold text-slate-900">Kosten invoeren</h2>
+        <p className="text-slate-500 text-sm mt-1">Sendcloud facturen en Google Ads — worden meegenomen in alle margeberekeningen</p>
       </div>
 
       {/* Summary tiles */}
@@ -41,7 +54,10 @@ export default async function AdsPage() {
         </div>
       </div>
 
-      {/* Entry form */}
+      {/* Sendcloud actual shipping costs */}
+      <ShippingCostForm initial={shippingRows} />
+
+      {/* Google Ads entry form */}
       <AdSpendForm />
 
       {/* Data table */}

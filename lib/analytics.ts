@@ -1,5 +1,5 @@
 import { prisma } from './db'
-import { startOfMonth, subMonths, endOfMonth, subDays, startOfYear, differenceInMonths } from 'date-fns'
+import { startOfMonth, subMonths, endOfMonth, subDays, startOfYear, differenceInMonths, getDaysInMonth } from 'date-fns'
 
 export type ProductStatus = 'new_rising' | 'steady' | 'declining' | 'new_slow' | 'underperforming'
 
@@ -8,16 +8,78 @@ const PARCEL_COST = parseFloat(process.env.PARCEL_SHIPPING_COST ?? '6.85')
 // Default rate for orders without a known shipping method (assume cheapest = letterbox)
 const DEFAULT_SHIPPING_COST = parseFloat(process.env.DEFAULT_SHIPPING_COST ?? process.env.LETTERBOX_SHIPPING_COST ?? '4.20')
 
-export function periodToRange(period = '30d'): { since: Date; months: number; label: string } {
+export function periodToRange(period = '30d'): { since: Date; until: Date; months: number; label: string } {
   const now = new Date()
-  switch (period) {
-    case '7d':  return { since: subDays(now, 7),    months: 1,  label: 'Laatste 7 dagen' }
-    case '3m':  return { since: subMonths(now, 3),  months: 3,  label: 'Laatste 3 maanden' }
-    case '6m':  return { since: subMonths(now, 6),  months: 6,  label: 'Laatste 6 maanden' }
-    case 'ytd': return { since: startOfYear(now),   months: Math.max(1, differenceInMonths(now, startOfYear(now)) + 1), label: 'Dit jaar' }
-    case '1y':  return { since: subMonths(now, 12), months: 12, label: 'Laatste 12 maanden' }
-    default:    return { since: subDays(now, 30),   months: 1,  label: 'Laatste 30 dagen' }
+
+  // Specific month: "2026-07"
+  if (/^\d{4}-\d{2}$/.test(period)) {
+    const [year, month] = period.split('-').map(Number)
+    const monthDate = new Date(year, month - 1, 1)
+    const label = monthDate.toLocaleDateString('nl-NL', { month: 'long', year: 'numeric' })
+    return { since: startOfMonth(monthDate), until: endOfMonth(monthDate), months: 1, label }
   }
+
+  switch (period) {
+    case '7d':  return { since: subDays(now, 7),    until: now, months: 1,  label: 'Laatste 7 dagen' }
+    case '3m':  return { since: subMonths(now, 3),  until: now, months: 3,  label: 'Laatste 3 maanden' }
+    case '6m':  return { since: subMonths(now, 6),  until: now, months: 6,  label: 'Laatste 6 maanden' }
+    case 'ytd': return { since: startOfYear(now), until: now, months: Math.max(1, differenceInMonths(now, startOfYear(now)) + 1), label: 'Dit jaar' }
+    case '1y':  return { since: subMonths(now, 12), until: now, months: 12, label: 'Laatste 12 maanden' }
+    default:    return { since: subDays(now, 30),   until: now, months: 1,  label: 'Laatste 30 dagen' }
+  }
+}
+
+// Load actual monthly Sendcloud costs stored as Settings keys: shipping_actual_YYYY-MM
+async function fetchActualMonthlyShipping(): Promise<Map<string, number>> {
+  const settings = await prisma.settings.findMany({
+    where: { key: { startsWith: 'shipping_actual_' } },
+  })
+  const map = new Map<string, number>()
+  for (const s of settings) {
+    const month = s.key.replace('shipping_actual_', '')
+    map.set(month, parseFloat(s.value))
+  }
+  return map
+}
+
+// Calculate shipping cost for a set of orders grouped by month.
+// For months with an actual Sendcloud cost: prorate by (days_in_period / days_in_month).
+// For months without: fall back to per-order estimate.
+function resolveShipping(
+  orders: Array<{ date: Date; shippingMethod?: string | null }>,
+  since: Date,
+  until: Date,
+  actualByMonth: Map<string, number>,
+): number {
+  // Group orders by month key
+  const byMonth = new Map<string, typeof orders>()
+  for (const o of orders) {
+    const mk = `${o.date.getFullYear()}-${String(o.date.getMonth() + 1).padStart(2, '0')}`
+    const list = byMonth.get(mk) ?? []
+    list.push(o)
+    byMonth.set(mk, list)
+  }
+
+  let total = 0
+  for (const [mk, monthOrders] of byMonth) {
+    const actual = actualByMonth.get(mk)
+    if (actual !== undefined) {
+      // Prorate the monthly invoice by days that fall within [since, until]
+      const [y, m] = mk.split('-').map(Number)
+      const monthStart = new Date(y, m - 1, 1)
+      const monthEnd = endOfMonth(monthStart)
+      const daysInMonth = getDaysInMonth(monthStart)
+      const periodStart = since > monthStart ? since : monthStart
+      const periodEnd = until < monthEnd ? until : monthEnd
+      const daysInPeriod = Math.max(0, (periodEnd.getTime() - periodStart.getTime()) / 86_400_000 + 1)
+      total += actual * (daysInPeriod / daysInMonth)
+    } else {
+      for (const o of monthOrders) {
+        total += calcActualShipping((o as { shippingMethod?: string | null }).shippingMethod)
+      }
+    }
+  }
+  return total
 }
 
 function calcActualShipping(method: string | null | undefined): number {
@@ -255,20 +317,20 @@ export interface OverviewStats {
 }
 
 export async function getOverviewStats(period = '30d'): Promise<OverviewStats> {
-  const now = new Date()
-  const { since, label } = periodToRange(period)
-  const periodLength = now.getTime() - since.getTime()
+  const { since, until, label } = periodToRange(period)
+  const periodLength = until.getTime() - since.getTime()
   const prevSince = new Date(since.getTime() - periodLength)
+  const prevUntil = since
 
   const { byId: cogsById, bySku: cogsBySku } = await buildCogsLookup()
 
-  const [orders, ordersPrev, totalCustomers, logoTekstCustomers, adSpendRows] = await Promise.all([
+  const [orders, ordersPrev, totalCustomers, logoTekstCustomers, adSpendRows, actualShippingByMonth] = await Promise.all([
     prisma.order.findMany({
-      where: { date: { gte: since }, status: { notIn: ['cancelled', 'refunded'] } },
+      where: { date: { gte: since, lte: until }, status: { notIn: ['cancelled', 'refunded'] } },
       include: { lineItems: true },
     }),
     prisma.order.findMany({
-      where: { date: { gte: prevSince, lt: since }, status: { notIn: ['cancelled', 'refunded'] } },
+      where: { date: { gte: prevSince, lte: prevUntil }, status: { notIn: ['cancelled', 'refunded'] } },
       select: { total: true },
     }),
     prisma.customer.count(),
@@ -289,7 +351,8 @@ export async function getOverviewStats(period = '30d'): Promise<OverviewStats> {
         },
       },
     }),
-    prisma.adSpend.findMany({ where: { date: { gte: since } } }),
+    prisma.adSpend.findMany({ where: { date: { gte: since, lte: until } } }),
+    fetchActualMonthlyShipping(),
   ])
 
   const totalRevenue = orders.reduce((s, o) => s + o.total, 0)
@@ -298,14 +361,13 @@ export async function getOverviewStats(period = '30d'): Promise<OverviewStats> {
   const shippingCharged = orders.reduce((s, o) => s + o.shippingTotal, 0)
 
   let cogs = 0
-  let actualShipping = 0
   for (const order of orders) {
-    actualShipping += calcActualShipping(order.shippingMethod)
     for (const item of order.lineItems) {
       cogs += lookupCogs(cogsById, cogsBySku, item.productId, item.sku) * item.quantity
     }
   }
 
+  const actualShipping = resolveShipping(orders, since, until, actualShippingByMonth)
   const adSpend = adSpendRows.reduce((s, a) => s + a.spend, 0)
   const grossMargin = totalRevenue - cogs - actualShipping - adSpend
   const grossMarginPct = totalRevenue > 0 ? (grossMargin / totalRevenue) * 100 : 0
@@ -423,25 +485,31 @@ export interface MarginData {
 }
 
 export async function getMarginData(period = '6m'): Promise<MarginData[]> {
-  const { since, months } = periodToRange(period)
+  const { since, until, months } = periodToRange(period)
   const now = new Date()
 
   const { byId: cogsById, bySku: cogsBySku } = await buildCogsLookup()
+  const actualShippingByMonth = await fetchActualMonthlyShipping()
 
   const result: MarginData[] = []
 
+  // For a specific month period, show that one month. Otherwise show rolling months up to `until`.
+  const isSpecificMonth = /^\d{4}-\d{2}$/.test(period)
+  const rangeEnd = isSpecificMonth ? until : now
+
   for (let i = months - 1; i >= 0; i--) {
-    const monthStart = startOfMonth(subMonths(now, i))
-    const monthEnd = endOfMonth(subMonths(now, i))
+    const monthStart = startOfMonth(subMonths(rangeEnd, i))
+    const monthEnd = endOfMonth(subMonths(rangeEnd, i))
     if (monthEnd < since) continue
 
     const mk = `${monthStart.getFullYear()}-${String(monthStart.getMonth() + 1).padStart(2, '0')}`
     const effectiveStart = monthStart > since ? monthStart : since
+    const effectiveEnd = monthEnd < until ? monthEnd : until
 
     const [orders, adSpendRows] = await Promise.all([
       prisma.order.findMany({
         where: {
-          date: { gte: effectiveStart, lte: monthEnd },
+          date: { gte: effectiveStart, lte: effectiveEnd },
           status: { notIn: ['cancelled', 'refunded'] },
         },
         include: { lineItems: true },
@@ -454,13 +522,17 @@ export async function getMarginData(period = '6m'): Promise<MarginData[]> {
     const adSpend = adSpendRows.reduce((s, a) => s + a.spend, 0)
 
     let cogs = 0
-    let actualShipping = 0
     for (const order of orders) {
-      actualShipping += calcActualShipping(order.shippingMethod)
       for (const item of order.lineItems) {
         cogs += lookupCogs(cogsById, cogsBySku, item.productId, item.sku) * item.quantity
       }
     }
+
+    // Use actual Sendcloud cost for this month if available, otherwise per-order estimate
+    const actualMonthCost = actualShippingByMonth.get(mk)
+    const actualShipping = actualMonthCost !== undefined
+      ? actualMonthCost
+      : orders.reduce((s, o) => s + calcActualShipping(o.shippingMethod), 0)
 
     const grossMargin = revenue - cogs - actualShipping - adSpend
     const grossMarginPct = revenue > 0 ? (grossMargin / revenue) * 100 : 0
