@@ -54,6 +54,10 @@ export default async function CampaignDetailPage({ params }: { params: Promise<{
     gravering_buyer: 'Gravering kopers',
     klompen_logo_buyer: 'Klompen met logo/tekst kopers',
     tulp_buyer: 'Tulpen kopers',
+    cross_emmer_glaswerk: 'Emmer → Glaswerk upsell',
+    cross_glaswerk_emmer: 'Glaswerk → Emmer upsell',
+    cross_logo_gravering: 'Logo/tekst → Gravering upsell',
+    cross_gravering_logo: 'Gravering → Logo klompen upsell',
   }
 
   return (

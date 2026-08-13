@@ -24,9 +24,9 @@ const statusColor: Record<ProductStatus, string> = {
 export default async function ProductsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ filter?: string; q?: string; period?: string }>
+  searchParams: Promise<{ filter?: string; q?: string; period?: string; sort?: string }>
 }) {
-  const { period = '30d', filter, q } = await searchParams
+  const { period = '30d', filter, q, sort } = await searchParams
   const { label: periodLabel } = periodToRange(period)
 
   let products = null
@@ -59,12 +59,14 @@ export default async function ProductsPage({
   }
 
   const activeFilter = filter ?? 'all'
+  const activeSort = sort ?? 'status'
   const query = (q ?? '').toLowerCase()
 
   // Extra search params to preserve when switching period
   const extraParams = [
     activeFilter !== 'all' ? `&filter=${activeFilter}` : '',
     query ? `&q=${query}` : '',
+    activeSort !== 'status' ? `&sort=${activeSort}` : '',
   ].join('')
 
   const filtered = products.filter((p) => {
@@ -73,13 +75,20 @@ export default async function ProductsPage({
     return matchesFilter && matchesQuery
   })
 
-  const sorted = [...filtered].sort((a, b) => {
-    const order: Record<ProductStatus, number> = {
+  let sorted: typeof filtered
+  if (activeSort === 'revenue') {
+    sorted = [...filtered].sort((a, b) => b.totalRevenuePeriod - a.totalRevenuePeriod).slice(0, 20)
+  } else if (activeSort === 'units') {
+    sorted = [...filtered].sort((a, b) => b.totalUnitsPeriod - a.totalUnitsPeriod).slice(0, 20)
+  } else {
+    const statusOrder: Record<ProductStatus, number> = {
       new_rising: 0, steady: 1, declining: 2, new_slow: 3, underperforming: 4,
     }
-    if (order[a.status] !== order[b.status]) return order[a.status] - order[b.status]
-    return b.totalRevenuePeriod - a.totalRevenuePeriod
-  })
+    sorted = [...filtered].sort((a, b) => {
+      if (statusOrder[a.status] !== statusOrder[b.status]) return statusOrder[a.status] - statusOrder[b.status]
+      return b.totalRevenuePeriod - a.totalRevenuePeriod
+    })
+  }
 
   const counts = products.reduce((acc, p) => {
     acc[p.status] = (acc[p.status] || 0) + 1
@@ -147,7 +156,7 @@ export default async function ProductsPage({
             {filterItems.map((f) => (
               <a
                 key={f.key}
-                href={`?filter=${f.key}&period=${period}${query ? `&q=${query}` : ''}`}
+                href={`?filter=${f.key}&period=${period}${query ? `&q=${query}` : ''}${activeSort !== 'status' ? `&sort=${activeSort}` : ''}`}
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                   activeFilter === f.key
                     ? 'bg-brand-600 text-white'
@@ -155,6 +164,25 @@ export default async function ProductsPage({
                 }`}
               >
                 {f.label}
+              </a>
+            ))}
+          </div>
+          <div className="flex gap-1 border-l border-slate-200 pl-3">
+            {[
+              { key: 'status', label: 'Status' },
+              { key: 'revenue', label: 'Top 20 omzet' },
+              { key: 'units', label: 'Top 20 stuks' },
+            ].map((s) => (
+              <a
+                key={s.key}
+                href={`?sort=${s.key}&period=${period}&filter=${activeFilter}${query ? `&q=${query}` : ''}`}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                  activeSort === s.key
+                    ? 'bg-slate-800 text-white'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                {s.label}
               </a>
             ))}
           </div>

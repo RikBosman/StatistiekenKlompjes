@@ -217,6 +217,10 @@ export default async function EmailPage() {
     gravering_buyer: 'Gravering kopers',
     klompen_logo_buyer: 'Klompen logo/tekst',
     tulp_buyer: 'Tulpen kopers',
+    cross_emmer_glaswerk: 'Emmer → Glaswerk upsell',
+    cross_glaswerk_emmer: 'Glaswerk → Emmer upsell',
+    cross_logo_gravering: 'Logo/tekst → Gravering upsell',
+    cross_gravering_logo: 'Gravering → Logo klompen upsell',
   }
 
   const statusBadge = (status: string) => {

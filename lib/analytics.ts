@@ -263,6 +263,11 @@ export interface OverviewStats {
   adSpend: number
   grossMargin: number
   grossMarginPct: number
+  roas: number | null
+  newCustomerRevenue: number
+  returningCustomerRevenue: number
+  newCustomerCount: number
+  returningCustomerCount: number
   revenueTrend: number
   ordersTrend: number
   avgOrderTrend: number
@@ -328,6 +333,39 @@ export async function getOverviewStats(period = '30d'): Promise<OverviewStats> {
   const adSpend = calcAdSpendForRange(adsDailyRate, since, until)
   const grossMargin = totalRevenue - cogs - actualShipping - adSpend
   const grossMarginPct = totalRevenue > 0 ? (grossMargin / totalRevenue) * 100 : 0
+  const roas = adSpend > 0 ? totalRevenue / adSpend : null
+
+  // New vs returning: compare each customer's all-time first order date against period start
+  const periodCustomerIds = Array.from(
+    new Set(orders.map((o) => o.customerId).filter((id): id is number => id !== null))
+  )
+  let newCustomerRevenue = 0
+  let returningCustomerRevenue = 0
+  const newCustomerIds = new Set<number>()
+  const returningCustomerIds = new Set<number>()
+  if (periodCustomerIds.length > 0) {
+    const firstOrderRows = await prisma.order.groupBy({
+      by: ['customerId'],
+      where: { customerId: { in: periodCustomerIds }, status: { notIn: ['cancelled', 'refunded'] } },
+      _min: { date: true },
+    })
+    const firstOrderMap = new Map(
+      firstOrderRows
+        .filter((r) => r.customerId !== null)
+        .map((r) => [r.customerId as number, r._min.date as Date])
+    )
+    for (const order of orders) {
+      if (!order.customerId) continue
+      const firstDate = firstOrderMap.get(order.customerId)
+      if (firstDate && firstDate >= since) {
+        newCustomerRevenue += order.total
+        newCustomerIds.add(order.customerId)
+      } else {
+        returningCustomerRevenue += order.total
+        returningCustomerIds.add(order.customerId)
+      }
+    }
+  }
 
   const prevRevenue = ordersPrev.reduce((s, o) => s + o.total, 0)
   const prevOrders = ordersPrev.length
@@ -346,6 +384,11 @@ export async function getOverviewStats(period = '30d'): Promise<OverviewStats> {
     adSpend,
     grossMargin,
     grossMarginPct,
+    roas,
+    newCustomerRevenue,
+    returningCustomerRevenue,
+    newCustomerCount: newCustomerIds.size,
+    returningCustomerCount: returningCustomerIds.size,
     revenueTrend: pct(totalRevenue, prevRevenue),
     ordersTrend: pct(totalOrders, prevOrders),
     avgOrderTrend: pct(avgOrderValue, prevAvg),

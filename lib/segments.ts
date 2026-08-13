@@ -12,6 +12,10 @@ export type SegmentType =
   | 'gravering_buyer'
   | 'klompen_logo_buyer'
   | 'tulp_buyer'
+  | 'cross_emmer_glaswerk'
+  | 'cross_glaswerk_emmer'
+  | 'cross_logo_gravering'
+  | 'cross_gravering_logo'
 
 export interface SegmentCustomer {
   id: number
@@ -145,6 +149,35 @@ export async function getSegmentCustomers(
       .sort((a, b) => b.orderCount - a.orderCount)
   }
 
+  // Returns set of customerIds who ever bought a product matching any of the keywords
+  async function buyerSet(keywords: string[]): Promise<Set<number>> {
+    const items = await prisma.orderItem.findMany({
+      where: { OR: keywords.map((k) => ({ name: { contains: k } })) },
+      select: { order: { select: { status: true, customerId: true } } },
+    })
+    return new Set(
+      items
+        .filter((i) => validOrder(i.order.status) && i.order.customerId !== null)
+        .map((i) => i.order.customerId as number)
+    )
+  }
+
+  // Fetch full SegmentCustomer data for a list of customerIds
+  async function fetchCustomers(customerIds: number[]): Promise<SegmentCustomer[]> {
+    if (customerIds.length === 0) return []
+    const customers = await prisma.customer.findMany({
+      where: { id: { in: customerIds } },
+      include: { orders: { orderBy: { date: 'desc' }, take: 1, select: { date: true, status: true } } },
+    })
+    return customers.map((c) => ({
+      id: c.id,
+      email: c.email,
+      firstName: c.firstName,
+      lastName: c.lastName,
+      lastOrderDate: c.orders[0]?.date,
+    }))
+  }
+
   // Generic keyword-based product segment helper
   async function keywordSegment(keywords: string[]): Promise<SegmentCustomer[]> {
     const items = await prisma.orderItem.findMany({
@@ -240,6 +273,34 @@ export async function getSegmentCustomers(
     return keywordSegment(['tulp'])
   }
 
+  const GLASWERK_KEYWORDS = ['aperol glas', 'bier glas', 'bierglas', 'speciaalbier', 'bierpul', 'champagneglas', 'champagne glas']
+  const LOGO_KEYWORDS = ['logo', 'tekst']
+  const GRAVERING_KEYWORDS = ['gravering']
+
+  if (segmentType === 'cross_emmer_glaswerk') {
+    const emmerIds = await buyerSet(['emmer'])
+    const glaswerkIds = await buyerSet(GLASWERK_KEYWORDS)
+    return fetchCustomers(Array.from(emmerIds).filter((id) => !glaswerkIds.has(id)))
+  }
+
+  if (segmentType === 'cross_glaswerk_emmer') {
+    const glaswerkIds = await buyerSet(GLASWERK_KEYWORDS)
+    const emmerIds = await buyerSet(['emmer'])
+    return fetchCustomers(Array.from(glaswerkIds).filter((id) => !emmerIds.has(id)))
+  }
+
+  if (segmentType === 'cross_logo_gravering') {
+    const logoIds = await buyerSet(LOGO_KEYWORDS)
+    const graveringIds = await buyerSet(GRAVERING_KEYWORDS)
+    return fetchCustomers(Array.from(logoIds).filter((id) => !graveringIds.has(id)))
+  }
+
+  if (segmentType === 'cross_gravering_logo') {
+    const graveringIds = await buyerSet(GRAVERING_KEYWORDS)
+    const logoIds = await buyerSet(LOGO_KEYWORDS)
+    return fetchCustomers(Array.from(graveringIds).filter((id) => !logoIds.has(id)))
+  }
+
   if (segmentType === 'list' && listId) {
     const members = await prisma.customerListMember.findMany({
       where: { listId },
@@ -268,6 +329,10 @@ export function segmentLabel(type: SegmentType): string {
     gravering_buyer: 'Gravering kopers',
     klompen_logo_buyer: 'Klompen met logo/tekst kopers',
     tulp_buyer: 'Tulpen kopers',
+    cross_emmer_glaswerk: 'Emmer kopers → upsell glaswerk',
+    cross_glaswerk_emmer: 'Glaswerk kopers → upsell emmer',
+    cross_logo_gravering: 'Logo/tekst kopers → upsell gravering',
+    cross_gravering_logo: 'Gravering kopers → upsell logo klompen',
   }
   return labels[type]
 }

@@ -84,8 +84,8 @@ export default async function DashboardPage({
         />
       </div>
 
-      {/* KPI row 2: cost breakdown */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+      {/* KPI row 2: cost breakdown + ROAS */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
         <div className="bg-white rounded-xl border border-slate-200 p-5">
           <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-3">Klanten totaal</p>
           <p className="text-2xl font-bold text-slate-900">{stats!.totalCustomers.toLocaleString('nl-NL')}</p>
@@ -110,12 +110,56 @@ export default async function DashboardPage({
             {stats!.adSpend > 0 ? `Periode totaal` : <a href="/dashboard/ads" className="underline">Dagbudget instellen →</a>}
           </p>
         </div>
-        <div className="bg-white rounded-xl border border-slate-200 p-5">
-          <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-3">Bruto marge (€)</p>
-          <p className={`text-2xl font-bold ${stats!.grossMargin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-            {formatCurrency(stats!.grossMargin)}
-          </p>
-          <p className="text-xs text-slate-400 mt-1">Omzet − inkoop − verzending − ads</p>
+        {stats!.roas !== null ? (
+          <div className={`rounded-xl border p-5 ${stats!.roas >= 4 ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+            <p className={`text-xs uppercase tracking-wide font-medium mb-3 ${stats!.roas >= 4 ? 'text-green-600' : 'text-red-600'}`}>ROAS</p>
+            <p className={`text-2xl font-bold ${stats!.roas >= 4 ? 'text-green-700' : 'text-red-700'}`}>
+              {stats!.roas.toFixed(1)}×
+            </p>
+            <p className={`text-xs mt-1 ${stats!.roas >= 4 ? 'text-green-500' : 'text-red-400'}`}>
+              {stats!.roas >= 4 ? `Boven doel (4×)` : `Onder doel (4×)`}
+            </p>
+          </div>
+        ) : (
+          <div className="bg-white rounded-xl border border-slate-200 p-5">
+            <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-3">ROAS</p>
+            <p className="text-2xl font-bold text-slate-300">—</p>
+            <p className="text-xs text-slate-400 mt-1"><a href="/dashboard/ads" className="underline">Dagbudget instellen →</a></p>
+          </div>
+        )}
+      </div>
+
+      {/* KPI row 3: new vs returning customers */}
+      <div className="grid grid-cols-2 gap-4 mb-8">
+        <div className="bg-sky-50 rounded-xl border border-sky-200 p-5 flex items-center gap-5">
+          <div>
+            <p className="text-xs text-sky-600 uppercase tracking-wide font-medium mb-1">Nieuwe klanten (periode)</p>
+            <p className="text-3xl font-bold text-sky-700">{stats!.newCustomerCount}</p>
+            <p className="text-xs text-sky-500 mt-1">{formatCurrency(stats!.newCustomerRevenue)} omzet</p>
+          </div>
+          <div className="flex-1 h-2 bg-sky-100 rounded-full overflow-hidden">
+            {(stats!.newCustomerCount + stats!.returningCustomerCount) > 0 && (
+              <div
+                className="h-full bg-sky-400 rounded-full"
+                style={{ width: `${(stats!.newCustomerCount / (stats!.newCustomerCount + stats!.returningCustomerCount)) * 100}%` }}
+              />
+            )}
+          </div>
+        </div>
+        <div className="bg-violet-50 rounded-xl border border-violet-200 p-5 flex items-center gap-5">
+          <div>
+            <p className="text-xs text-violet-600 uppercase tracking-wide font-medium mb-1">Terugkerende klanten</p>
+            <p className="text-3xl font-bold text-violet-700">{stats!.returningCustomerCount}</p>
+            <p className="text-xs text-violet-500 mt-1">{formatCurrency(stats!.returningCustomerRevenue)} omzet</p>
+          </div>
+          <div className="flex-1 h-2 bg-violet-100 rounded-full overflow-hidden">
+            {(stats!.newCustomerCount + stats!.returningCustomerCount) > 0 && (
+              <div
+                className="h-full bg-violet-400 rounded-full"
+                style={{ width: `${(stats!.returningCustomerCount / (stats!.newCustomerCount + stats!.returningCustomerCount)) * 100}%` }}
+              />
+            )}
+          </div>
         </div>
       </div>
 
