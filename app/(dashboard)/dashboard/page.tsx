@@ -3,6 +3,7 @@ import { getOverviewStats, getMarginData } from '@/lib/analytics'
 import { formatCurrency } from '@/lib/utils'
 import StatCard from '@/components/StatCard'
 import RevenueChart from '@/components/RevenueChart'
+import MonthlyLineChart from '@/components/MonthlyLineChart'
 import SyncStatus from '@/components/SyncStatus'
 import PeriodPicker from '@/components/PeriodPicker'
 
@@ -17,13 +18,15 @@ export default async function DashboardPage({
 
   let stats = null
   let marginData = null
+  let trendData = null
   let syncLogs = null
   let dbConnected = false
 
   try {
-    ;[stats, marginData, syncLogs] = await Promise.all([
+    ;[stats, marginData, trendData, syncLogs] = await Promise.all([
       getOverviewStats(period),
       getMarginData(period === '7d' || period === '30d' ? '6m' : period),
+      getMarginData('1y'),
       prisma.syncLog.findMany({ orderBy: { createdAt: 'desc' }, take: 5 }),
     ])
     dbConnected = true
@@ -207,6 +210,15 @@ export default async function DashboardPage({
           <h3 className="text-slate-800 font-semibold mb-1">Omzet vs Bruto marge</h3>
           <p className="text-slate-400 text-xs mb-4">Laatste 6 maanden</p>
           <RevenueChart data={marginData} />
+        </div>
+      )}
+
+      {/* Interactive trend chart */}
+      {trendData && trendData.length > 0 && (
+        <div className="bg-white rounded-xl border border-slate-200 p-6 mb-6">
+          <h3 className="text-slate-800 font-semibold mb-1">Trendgrafiek</h3>
+          <p className="text-slate-400 text-xs mb-5">Afgelopen 12 maanden — vink aan welke lijnen je wilt zien</p>
+          <MonthlyLineChart data={trendData} />
         </div>
       )}
 

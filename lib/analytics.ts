@@ -589,12 +589,20 @@ export async function getCustomerAnalytics(period = '30d'): Promise<CustomerAnal
 export interface MarginData {
   month: string
   revenue: number
+  revenueExclBtw: number
   shippingCharged: number
   actualShipping: number
   cogs: number
   adSpend: number
+  paymentCost: number
+  packagingCost: number
   grossMargin: number
   grossMarginPct: number
+  contributionMargin: number
+  contributionMarginPerOrder: number
+  roas: number | null
+  totalOrders: number
+  avgOrderValue: number
 }
 
 export async function getMarginData(period = '6m'): Promise<MarginData[]> {
@@ -647,11 +655,36 @@ export async function getMarginData(period = '6m'): Promise<MarginData[]> {
       }
     }
 
+    const paymentCostPerOrder = await getSetting('payment_cost_per_order', 0.50)
+    const btwRate = await getSetting('btw_rate', 21)
+    const totalOrders = orders.length
     const actualShipping = invoiceShipping ?? estimatedShipping
-    const grossMargin = revenue - cogs - actualShipping - packagingCost - adSpend
-    const grossMarginPct = revenue > 0 ? (grossMargin / revenue) * 100 : 0
+    const paymentCost = paymentCostPerOrder * totalOrders
+    const revenueExclBtw = revenue / (1 + btwRate / 100)
+    const contributionMargin = revenueExclBtw - cogs - actualShipping - packagingCost - paymentCost - adSpend
+    const grossMargin = revenueExclBtw - cogs - actualShipping - packagingCost - adSpend
+    const grossMarginPct = revenueExclBtw > 0 ? (grossMargin / revenueExclBtw) * 100 : 0
+    const roas = adSpend > 0 ? revenueExclBtw / adSpend : null
+    const avgOrderValue = totalOrders > 0 ? revenue / totalOrders : 0
 
-    result.push({ month: mk, revenue, shippingCharged, actualShipping, cogs, adSpend, grossMargin, grossMarginPct })
+    result.push({
+      month: mk,
+      revenue,
+      revenueExclBtw,
+      shippingCharged,
+      actualShipping,
+      cogs,
+      adSpend,
+      paymentCost,
+      packagingCost,
+      grossMargin,
+      grossMarginPct,
+      contributionMargin,
+      contributionMarginPerOrder: totalOrders > 0 ? contributionMargin / totalOrders : 0,
+      roas,
+      totalOrders,
+      avgOrderValue,
+    })
   }
 
   return result
