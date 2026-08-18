@@ -3,13 +3,13 @@ import { prisma } from '@/lib/db'
 
 interface SendcloudInvoice {
   id: number
-  date: string
-  is_paid: boolean
-  total_price_incl: string
-  total_price_excl: string
+  date?: string | null
+  isPayed?: boolean
+  price_incl?: string | number | null
+  price_excl?: string | number | null
   ref?: string
   type?: string | number
-  label?: string
+  items?: unknown[]
   [key: string]: unknown
 }
 
@@ -57,7 +57,7 @@ export async function POST() {
       if (isNaN(d.getTime())) { skippedNoDate++; continue }
 
       // Prefer excl. BTW; fall back to incl. BTW
-      const raw = inv.total_price_excl ?? inv.total_price_incl
+      const raw = inv.price_excl ?? inv.price_incl
       if (!raw) { skippedNoAmount++; continue }
       const amount = parseFloat(String(raw))
       if (isNaN(amount) || amount <= 0) { skippedNoAmount++; continue }
