@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server'
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const pdfParse = require('pdf-parse')
+const _pdfParse = require('pdf-parse')
+// pdf-parse exports the function as .default in ESM contexts
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const pdfParse: (buf: Buffer) => Promise<{ text: string }> = (_pdfParse as any).default ?? _pdfParse
 
 const MONTHS_NL: Record<string, number> = {
   januari: 1, februari: 2, maart: 3, april: 4, mei: 5, juni: 6,
