@@ -43,7 +43,9 @@ export default function SendcloudSync({ publicKey, secretKey }: Props) {
     } else {
       setSyncState('error')
       setSyncMsg(data.error ?? 'Onbekende fout')
-      if (data.listFields || data.detailFields) {
+      if (data.subObjects) {
+        setSyncDebug(`Sub-objecten: ${JSON.stringify(data.subObjects, null, 2)}`)
+      } else if (data.listFields || data.detailFields) {
         setSyncDebug(`Lijst-velden: ${(data.listFields ?? []).join(', ')} · Detail-velden: ${(data.detailFields ?? []).join(', ')}`)
       }
     }

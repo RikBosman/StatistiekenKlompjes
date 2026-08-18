@@ -75,18 +75,36 @@ export async function POST() {
       if (singleParcel) detailFields = Object.keys(singleParcel)
     }
 
+    // Inspect nested sub-objects for price data
+    const sample = singleParcel ?? firstPage[0] ?? null
+    const subObjects = sample ? {
+      shipment: sample.shipment,
+      carrier:  sample.carrier,
+      label:    sample.label,
+      data:     sample.data,
+      contract: sample.contract,
+    } : {}
+
+    // Check if price is nested inside a known sub-object
+    const shipmentPrice = (sample?.shipment as Record<string, unknown>)?.price
+    const carrierPrice  = (sample?.carrier  as Record<string, unknown>)?.price
+    const labelPrice    = (sample?.label    as Record<string, unknown>)?.price
+
+    const nestedPrice = shipmentPrice ?? carrierPrice ?? labelPrice ?? null
+
     // Decide: can we get price from the list, or only from detail?
     const listHasPrice = listFields.includes('price')
     const detailHasPrice = detailFields.includes('price')
+    const hasNestedPrice = nestedPrice !== null
 
-    // If neither has price, return debug info so we can investigate
-    if (!listHasPrice && !detailHasPrice) {
+    // If no price anywhere, return debug info so we can investigate
+    if (!listHasPrice && !detailHasPrice && !hasNestedPrice) {
       return NextResponse.json({
         ok: false,
-        error: 'Geen price-veld gevonden in SendCloud API. Zie debug info.',
+        error: 'Geen price-veld gevonden in SendCloud API. De SendCloud REST API biedt geen toegang tot verzendkosten per zending. Gebruik de PDF-import voor facturen.',
         listFields,
         detailFields,
-        sampleParcel: singleParcel,
+        subObjects,
       })
     }
 
@@ -105,10 +123,16 @@ export async function POST() {
       totalFetched += parcels.length
 
       for (const parcel of parcels) {
-        // Resolve price
+        // Resolve price — check top-level, then nested sub-objects
         let cost: number | null = null
-        if (listHasPrice && parcel.price?.value) {
-          const v = parseFloat(parcel.price.value)
+        const rawPrice =
+          parcel.price?.value ??
+          (parcel.shipment as Record<string, { value?: string } | null> | null)?.price?.value ??
+          (parcel.carrier  as Record<string, { value?: string } | null> | null)?.price?.value ??
+          (parcel.label    as Record<string, { value?: string } | null> | null)?.price?.value ??
+          null
+        if (rawPrice) {
+          const v = parseFloat(rawPrice)
           if (!isNaN(v) && v > 0) cost = v
         }
         if (cost === null) { skippedNoPrice++; continue }
