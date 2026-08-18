@@ -36,17 +36,15 @@ export default function SendcloudSync({ publicKey, secretKey }: Props) {
     const data = await res.json()
     if (data.ok) {
       setSyncState('done')
-      setSyncMsg(`${data.savedMonths} maanden opgeslagen (${data.totalFetched} zendingen opgehaald)`)
+      setSyncMsg(`${data.savedMonths} maanden opgeslagen (${data.totalFetched} facturen opgehaald)`)
       setSyncDetail(data.months ?? [])
-      setSyncDebug(`Overgeslagen: ${data.skippedNoPrice} geen prijs, ${data.skippedNoDate} geen datum · Lijst-velden: ${(data.listFields ?? []).join(', ')} · Detail-velden: ${(data.detailFields ?? []).join(', ')}`)
+      setSyncDebug(`Overgeslagen: ${data.skippedNoAmount ?? 0} geen bedrag, ${data.skippedNoDate ?? 0} geen datum · Velden: ${(data.debugFields ?? []).join(', ')}`)
       if (data.savedMonths > 0) router.refresh()
     } else {
       setSyncState('error')
       setSyncMsg(data.error ?? 'Onbekende fout')
-      if (data.subObjects) {
-        setSyncDebug(`Sub-objecten: ${JSON.stringify(data.subObjects, null, 2)}`)
-      } else if (data.listFields || data.detailFields) {
-        setSyncDebug(`Lijst-velden: ${(data.listFields ?? []).join(', ')} · Detail-velden: ${(data.detailFields ?? []).join(', ')}`)
+      if (data.debugFields) {
+        setSyncDebug(`Velden: ${(data.debugFields ?? []).join(', ')}`)
       }
     }
   }
