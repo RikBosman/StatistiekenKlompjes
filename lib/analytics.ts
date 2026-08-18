@@ -11,6 +11,23 @@ async function getAdsDailyRate(): Promise<number> {
 }
 
 async function getActualAdSpend(since: Date, until: Date, dailyRateFallback: number): Promise<{ spend: number; fromDb: boolean }> {
+  // Priority 1: monthly PDF invoices
+  const sinceYear = since.getFullYear(), sinceMonth = since.getMonth() + 1
+  const untilYear = until.getFullYear(), untilMonth = until.getMonth() + 1
+  const pairs: { year: number; month: number }[] = []
+  let y = sinceYear, m = sinceMonth
+  while (y < untilYear || (y === untilYear && m <= untilMonth)) {
+    pairs.push({ year: y, month: m })
+    m++; if (m > 12) { m = 1; y++ }
+  }
+  const invoices = await prisma.adsInvoice.findMany({
+    where: { OR: pairs.map((p) => ({ year: p.year, month: p.month })) },
+  })
+  if (invoices.length > 0) {
+    return { spend: invoices.reduce((s, r) => s + r.amountExclBtw, 0), fromDb: true }
+  }
+
+  // Priority 2: CSV rows in AdSpend table
   const rows = await prisma.adSpend.findMany({
     where: { date: { gte: since, lte: until } },
     select: { spend: true },
@@ -18,6 +35,8 @@ async function getActualAdSpend(since: Date, until: Date, dailyRateFallback: num
   if (rows.length > 0) {
     return { spend: rows.reduce((s, r) => s + r.spend, 0), fromDb: true }
   }
+
+  // Priority 3: daily rate estimate
   const days = Math.max(0, (until.getTime() - since.getTime()) / 86_400_000)
   return { spend: dailyRateFallback * days, fromDb: false }
 }
