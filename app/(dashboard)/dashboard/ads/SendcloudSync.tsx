@@ -36,13 +36,16 @@ export default function SendcloudSync({ publicKey, secretKey }: Props) {
     const data = await res.json()
     if (data.ok) {
       setSyncState('done')
-      setSyncMsg(`${data.savedMonths} maanden opgeslagen (${data.totalFetched} facturen opgehaald)`)
+      setSyncMsg(`${data.savedMonths} maanden opgeslagen (${data.totalFetched} zendingen opgehaald)`)
       setSyncDetail(data.months ?? [])
-      setSyncDebug(`Overgeslagen: ${data.skippedNoAmount} geen bedrag, ${data.skippedNoDate} geen datum. Velden: ${(data.debugInvoiceFields ?? []).join(', ')}`)
+      setSyncDebug(`Overgeslagen: ${data.skippedNoPrice} geen prijs, ${data.skippedNoDate} geen datum · Lijst-velden: ${(data.listFields ?? []).join(', ')} · Detail-velden: ${(data.detailFields ?? []).join(', ')}`)
       if (data.savedMonths > 0) router.refresh()
     } else {
       setSyncState('error')
       setSyncMsg(data.error ?? 'Onbekende fout')
+      if (data.listFields || data.detailFields) {
+        setSyncDebug(`Lijst-velden: ${(data.listFields ?? []).join(', ')} · Detail-velden: ${(data.detailFields ?? []).join(', ')}`)
+      }
     }
   }
 
@@ -106,7 +109,12 @@ export default function SendcloudSync({ publicKey, secretKey }: Props) {
           )}
         </div>
       )}
-      {syncState === 'error' && <p className="text-red-600 text-sm mt-3">{syncMsg}</p>}
+      {syncState === 'error' && (
+        <div className="mt-3">
+          <p className="text-red-600 text-sm">{syncMsg}</p>
+          {syncDebug && <p className="text-slate-400 text-xs mt-1 font-mono">{syncDebug}</p>}
+        </div>
+      )}
     </div>
   )
 }

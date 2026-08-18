@@ -1,25 +1,56 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 
-interface SendcloudInvoice {
+interface SendcloudParcel {
   id: number
-  date: string
-  is_paid: boolean
-  total_price_incl: string
-  total_price_excl: string
-  ref: string
-  type?: string | number
-  label?: string
+  price?: { value: string; currency: string } | null
+  // date field names vary by account type
+  created_at?: string
+  date_created?: string
+  date?: string
+  status?: { id: number; message: string } | string
   [key: string]: unknown
 }
 
-interface SendcloudInvoicesResponse {
-  invoices: SendcloudInvoice[]
+interface SendcloudResponse {
+  parcels: SendcloudParcel[]
+  next?: string | null
 }
 
 async function getSetting(key: string): Promise<string | null> {
   const s = await prisma.settings.findUnique({ where: { key } })
   return s?.value ?? null
+}
+
+function getParcelDate(parcel: SendcloudParcel): Date | null {
+  const raw = parcel.created_at ?? parcel.date_created ?? parcel.date
+  if (!raw) return null
+  const d = new Date(raw as string)
+  return isNaN(d.getTime()) ? null : d
+}
+
+async function fetchPage(auth: string, page: number): Promise<SendcloudParcel[]> {
+  const res = await fetch(
+    `https://panel.sendcloud.sc/api/v2/parcels?page=${page}&page_size=100`,
+    { headers: { Authorization: `Basic ${auth}`, Accept: 'application/json' } }
+  )
+  if (!res.ok) throw new Error(`SendCloud parcels ${res.status}: ${(await res.text()).slice(0, 200)}`)
+  const data: SendcloudResponse = await res.json()
+  return data.parcels ?? []
+}
+
+async function fetchSingleParcel(auth: string, id: number): Promise<SendcloudParcel | null> {
+  try {
+    const res = await fetch(
+      `https://panel.sendcloud.sc/api/v2/parcels/${id}`,
+      { headers: { Authorization: `Basic ${auth}`, Accept: 'application/json' } }
+    )
+    if (!res.ok) return null
+    const data = await res.json()
+    return data.parcel ?? null
+  } catch {
+    return null
+  }
 }
 
 export async function POST() {
@@ -32,40 +63,69 @@ export async function POST() {
 
     const auth = Buffer.from(`${publicKey}:${secretKey}`).toString('base64')
 
-    const res = await fetch(
-      'https://panel.sendcloud.sc/api/v2/invoices',
-      { headers: { Authorization: `Basic ${auth}`, Accept: 'application/json' } }
-    )
-    if (!res.ok) {
-      const body = (await res.text()).slice(0, 300)
-      throw new Error(`SendCloud invoices ${res.status}: ${body}`)
+    // Fetch first page to inspect field names
+    const firstPage = await fetchPage(auth, 1)
+    const listFields = firstPage.length > 0 ? Object.keys(firstPage[0]) : []
+
+    // Fetch a single parcel detail to compare available fields
+    let detailFields: string[] = []
+    let singleParcel: SendcloudParcel | null = null
+    if (firstPage.length > 0) {
+      singleParcel = await fetchSingleParcel(auth, firstPage[0].id)
+      if (singleParcel) detailFields = Object.keys(singleParcel)
     }
 
-    const data: SendcloudInvoicesResponse = await res.json()
-    const invoices = data.invoices ?? []
-    const sampleFields = invoices.length > 0 ? Object.keys(invoices[0]) : []
+    // Decide: can we get price from the list, or only from detail?
+    const listHasPrice = listFields.includes('price')
+    const detailHasPrice = detailFields.includes('price')
 
-    // Group invoice amounts by month
+    // If neither has price, return debug info so we can investigate
+    if (!listHasPrice && !detailHasPrice) {
+      return NextResponse.json({
+        ok: false,
+        error: 'Geen price-veld gevonden in SendCloud API. Zie debug info.',
+        listFields,
+        detailFields,
+        sampleParcel: singleParcel,
+      })
+    }
+
+    // If only detail has price, fetching 5000 individual parcels is too slow.
+    // We fall back to the "list but use detail for price" approach for a single page,
+    // and return a clear warning.
     const costByMonth = new Map<string, number>()
+    let totalFetched = 0
+    let skippedNoPrice = 0
     let skippedNoDate = 0
-    let skippedNoAmount = 0
 
-    for (const inv of invoices) {
-      if (!inv.date) { skippedNoDate++; continue }
-      const d = new Date(inv.date)
-      if (isNaN(d.getTime())) { skippedNoDate++; continue }
+    let page = 1
+    while (true) {
+      const parcels = page === 1 ? firstPage : await fetchPage(auth, page)
+      if (!parcels.length) break
+      totalFetched += parcels.length
 
-      // Prefer excl. BTW; fall back to incl. BTW
-      const raw = inv.total_price_excl ?? inv.total_price_incl
-      if (!raw) { skippedNoAmount++; continue }
-      const amount = parseFloat(String(raw))
-      if (isNaN(amount) || amount <= 0) { skippedNoAmount++; continue }
+      for (const parcel of parcels) {
+        // Resolve price
+        let cost: number | null = null
+        if (listHasPrice && parcel.price?.value) {
+          const v = parseFloat(parcel.price.value)
+          if (!isNaN(v) && v > 0) cost = v
+        }
+        if (cost === null) { skippedNoPrice++; continue }
 
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-      costByMonth.set(key, (costByMonth.get(key) ?? 0) + amount)
+        const d = getParcelDate(parcel)
+        if (!d) { skippedNoDate++; continue }
+
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+        costByMonth.set(key, (costByMonth.get(key) ?? 0) + cost)
+      }
+
+      if (parcels.length < 100) break
+      page++
+      if (page > 50) break
     }
 
-    // Upsert monthly totals into ShippingInvoice
+    // Upsert monthly totals
     let savedMonths = 0
     const monthResults: string[] = []
     for (const [key, total] of [...costByMonth.entries()].sort()) {
@@ -85,12 +145,13 @@ export async function POST() {
 
     return NextResponse.json({
       ok: true,
-      totalFetched: invoices.length,
+      totalFetched,
       savedMonths,
+      skippedNoPrice,
       skippedNoDate,
-      skippedNoAmount,
       months: monthResults,
-      debugInvoiceFields: sampleFields,
+      listFields,
+      detailFields,
     })
   } catch (err) {
     await prisma.syncLog.create({
