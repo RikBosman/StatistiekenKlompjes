@@ -57,6 +57,29 @@ export function periodToRange(period = '30d'): { since: Date; until: Date; month
   }
 }
 
+// Returns total shipping cost from invoices for a date range; null if no invoices cover the period
+async function getInvoiceShipping(since: Date, until: Date): Promise<number | null> {
+  const sinceYear = since.getFullYear()
+  const sinceMonth = since.getMonth() + 1
+  const untilYear = until.getFullYear()
+  const untilMonth = until.getMonth() + 1
+
+  // Collect all year/month pairs in the range
+  const pairs: { year: number; month: number }[] = []
+  let y = sinceYear, m = sinceMonth
+  while (y < untilYear || (y === untilYear && m <= untilMonth)) {
+    pairs.push({ year: y, month: m })
+    m++; if (m > 12) { m = 1; y++ }
+  }
+
+  const invoices = await prisma.shippingInvoice.findMany({
+    where: { OR: pairs.map((p) => ({ year: p.year, month: p.month })) },
+  })
+
+  if (invoices.length === 0) return null
+  return invoices.reduce((s, inv) => s + inv.amountExclBtw, 0)
+}
+
 function calcActualShipping(method: string | null | undefined): number {
   if (!method) return DEFAULT_SHIPPING_COST // use default rate when method unknown
   const m = method.toLowerCase()
@@ -376,10 +399,14 @@ export async function getOverviewStats(period = '30d'): Promise<OverviewStats> {
     }
   }
 
-  const { spend: adSpend, fromDb: adSpendFromDb } = await getActualAdSpend(since, until, adsDailyRate)
-  void adSpendFromDb // available for future use (e.g. indicator in UI)
+  const [{ spend: adSpend }, invoiceShipping] = await Promise.all([
+    getActualAdSpend(since, until, adsDailyRate),
+    getInvoiceShipping(since, until),
+  ])
   void sendcloudOrders
-  const grossMargin = totalRevenue - cogs - actualShipping - packagingCost - adSpend
+  // Invoice shipping overrides per-order estimates when available
+  const finalShipping = invoiceShipping ?? actualShipping
+  const grossMargin = totalRevenue - cogs - finalShipping - packagingCost - adSpend
   const grossMarginPct = totalRevenue > 0 ? (grossMargin / totalRevenue) * 100 : 0
   const roas = adSpend > 0 ? totalRevenue / adSpend : null
 
@@ -387,7 +414,7 @@ export async function getOverviewStats(period = '30d'): Promise<OverviewStats> {
   const revenueExclBtw = totalRevenue / (1 + btwRate / 100)
   const googleCostPerOrder = totalOrders > 0 ? adSpend / totalOrders : 0
   const productMarginPct = revenueExclBtw > 0 ? ((revenueExclBtw - cogs) / revenueExclBtw) * 100 : 0
-  const netShippingCost = actualShipping // carrier cost; shippingCharged is already in revenueExclBtw
+  const netShippingCost = finalShipping // invoice total when available, else per-order estimate
   const paymentCost = paymentCostPerOrder * totalOrders
   const contributionMargin = revenueExclBtw - cogs - netShippingCost - packagingCost - paymentCost - adSpend
   const contributionMarginPerOrder = totalOrders > 0 ? contributionMargin / totalOrders : 0
@@ -585,19 +612,23 @@ export async function getMarginData(period = '6m'): Promise<MarginData[]> {
 
     const revenue = orders.reduce((s, o) => s + o.total, 0)
     const shippingCharged = orders.reduce((s, o) => s + o.shippingTotal, 0)
-    const { spend: adSpend } = await getActualAdSpend(effectiveStart, effectiveEnd, adsDailyRate)
+    const [{ spend: adSpend }, invoiceShipping] = await Promise.all([
+      getActualAdSpend(effectiveStart, effectiveEnd, adsDailyRate),
+      getInvoiceShipping(effectiveStart, effectiveEnd),
+    ])
 
     let cogs = 0
-    let actualShipping = 0
+    let estimatedShipping = 0
     let packagingCost = 0
     for (const order of orders) {
-      actualShipping += order.sendcloudCost ?? calcActualShipping(order.shippingMethod)
+      estimatedShipping += order.sendcloudCost ?? calcActualShipping(order.shippingMethod)
       packagingCost += calcPackagingCost(order.shippingMethod)
       for (const item of order.lineItems) {
         cogs += lookupCogs(cogsById, cogsBySku, item.productId, item.sku) * item.quantity
       }
     }
 
+    const actualShipping = invoiceShipping ?? estimatedShipping
     const grossMargin = revenue - cogs - actualShipping - packagingCost - adSpend
     const grossMarginPct = revenue > 0 ? (grossMargin / revenue) * 100 : 0
 

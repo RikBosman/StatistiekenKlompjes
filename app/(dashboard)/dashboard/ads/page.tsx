@@ -4,8 +4,11 @@ import DailyRateForm from './DailyRateForm'
 import SettingInput from './SettingInput'
 import CsvImport from './CsvImport'
 import SendcloudSync from './SendcloudSync'
+import ShippingPdfImport from './ShippingPdfImport'
 
 export const revalidate = 0
+
+const MONTHS_NL = ['jan', 'feb', 'mrt', 'apr', 'mei', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec']
 
 async function getSetting(key: string, fallback: number) {
   const s = await prisma.settings.findUnique({ where: { key } })
@@ -18,13 +21,14 @@ async function getStringSetting(key: string): Promise<string> {
 }
 
 export default async function AdsPage() {
-  const [dailyRate, btwRate, paymentCostPerOrder, sendcloudPublicKey, sendcloudSecretKey, adSpendCount] = await Promise.all([
+  const [dailyRate, btwRate, paymentCostPerOrder, sendcloudPublicKey, sendcloudSecretKey, adSpendCount, shippingInvoices] = await Promise.all([
     getSetting('ads_daily_rate', 0),
     getSetting('btw_rate', 21),
     getSetting('payment_cost_per_order', 0.50),
     getStringSetting('sendcloud_public_key'),
     getStringSetting('sendcloud_secret_key'),
     prisma.adSpend.count(),
+    prisma.shippingInvoice.findMany({ orderBy: [{ year: 'desc' }, { month: 'desc' }] }),
   ])
 
   return (
@@ -43,7 +47,7 @@ export default async function AdsPage() {
           <div className="space-y-4">
             {adSpendCount > 0 ? (
               <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-sm text-green-700">
-                ✓ <strong>{adSpendCount} rijen</strong> werkelijke Google Ads spend geïmporteerd. De dagelijkse schatting hieronder wordt genegeerd zolang er CSV-data beschikbaar is voor de geselecteerde periode.
+                ✓ <strong>{adSpendCount} rijen</strong> werkelijke Google Ads spend geïmporteerd. De dagelijkse schatting wordt genegeerd zolang er CSV-data beschikbaar is voor de geselecteerde periode.
               </div>
             ) : dailyRate > 0 ? (
               <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-700">
@@ -76,9 +80,57 @@ export default async function AdsPage() {
           </div>
         </div>
 
-        {/* SendCloud */}
+        {/* SendCloud facturen */}
         <div>
           <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">SendCloud verzendkosten</h3>
+          <div className="space-y-4">
+            {shippingInvoices.length > 0 ? (
+              <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-sm text-green-700">
+                ✓ <strong>{shippingInvoices.length} maandfacturen</strong> geïmporteerd — wordt gebruikt in de berekeningen.
+              </div>
+            ) : (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-700">
+                Geen facturen geïmporteerd. Er wordt nu een schatting gebruikt (€4,20 brievenbus / €6,85 pakket per order).
+              </div>
+            )}
+
+            <div className="bg-white rounded-xl border border-slate-200 p-6">
+              <h4 className="font-semibold text-slate-900 mb-1">Maandfactuur importeren (PDF)</h4>
+              <p className="text-xs text-slate-400 mb-5">
+                Download je maandfactuur bij SendCloud → Facturen. Upload de PDF en controleer de uitgelezen waarden.
+              </p>
+              <ShippingPdfImport />
+            </div>
+
+            {shippingInvoices.length > 0 && (
+              <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-100">
+                      <th className="text-left text-xs text-slate-400 font-medium px-5 py-3">Periode</th>
+                      <th className="text-right text-xs text-slate-400 font-medium px-5 py-3">Subtotaal excl. BTW</th>
+                      <th className="text-right text-xs text-slate-400 font-medium px-5 py-3">Bestand</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {shippingInvoices.map((inv) => (
+                      <tr key={`${inv.year}-${inv.month}`} className="border-b border-slate-50 last:border-0">
+                        <td className="px-5 py-3 text-slate-700">{MONTHS_NL[inv.month - 1]} {inv.year}</td>
+                        <td className="px-5 py-3 text-right font-semibold text-slate-900">{formatCurrency(inv.amountExclBtw)}</td>
+                        <td className="px-5 py-3 text-right text-slate-400 text-xs">{inv.filename ?? '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* SendCloud API (alternatief) */}
+        <div>
+          <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-1">SendCloud API (alternatief)</h3>
+          <p className="text-xs text-slate-400 mb-3">Optioneel: synchroniseer werkelijke kosten per zending via de API. Wordt overschreven door maandfacturen als die beschikbaar zijn.</p>
           <SendcloudSync publicKey={sendcloudPublicKey} secretKey={sendcloudSecretKey} />
         </div>
 

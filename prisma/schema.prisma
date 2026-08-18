@@ -180,6 +180,19 @@ model CampaignRecipient {
   @@map("campaign_recipients")
 }
 
+model ShippingInvoice {
+  id            Int      @id @default(autoincrement())
+  year          Int
+  month         Int      // 1–12
+  amountExclBtw Float
+  filename      String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([year, month])
+  @@map("shipping_invoices")
+}
+
 model SyncLog {
   id        Int      @id @default(autoincrement())
   type      String   // products, orders, ads, reminders
