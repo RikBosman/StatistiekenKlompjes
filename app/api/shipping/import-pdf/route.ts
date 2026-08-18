@@ -1,9 +1,4 @@
 import { NextResponse } from 'next/server'
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const _pdfParse = require('pdf-parse')
-// pdf-parse exports the function as .default in ESM contexts
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const pdfParse: (buf: Buffer) => Promise<{ text: string }> = (_pdfParse as any).default ?? _pdfParse
 
 const MONTHS_NL: Record<string, number> = {
   januari: 1, februari: 2, maart: 3, april: 4, mei: 5, juni: 6,
@@ -109,8 +104,10 @@ export async function POST(req: Request) {
 
     const f = file as File
     const buffer = Buffer.from(await f.arrayBuffer())
-    const pdf = await pdfParse(buffer)
-    const text: string = pdf.text
+    const { PDFParse } = await import('pdf-parse')
+    const parser = new PDFParse({ data: buffer })
+    const result = await parser.getText()
+    const text: string = result.text
 
     const { year, month, amountExclBtw } = extractFromText(text)
 

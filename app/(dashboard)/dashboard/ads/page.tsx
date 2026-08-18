@@ -171,12 +171,7 @@ export default async function AdsPage() {
               </div>
             )}
 
-            <details className="text-xs text-slate-400">
-              <summary className="cursor-pointer hover:text-slate-600 font-medium">SendCloud API-sleutels beheren</summary>
-              <div className="mt-3">
-                <SendcloudSync publicKey={sendcloudPublicKey} secretKey={sendcloudSecretKey} />
-              </div>
-            </details>
+            <SendcloudSync publicKey={sendcloudPublicKey} secretKey={sendcloudSecretKey} />
           </div>
         </div>
 

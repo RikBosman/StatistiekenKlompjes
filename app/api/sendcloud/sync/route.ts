@@ -32,19 +32,31 @@ async function getSetting(key: string): Promise<string | null> {
   return s?.value ?? null
 }
 
+function extractOrderId(orderNumber: string): number | null {
+  if (!orderNumber) return null
+  // Try direct parse first
+  const direct = parseInt(orderNumber)
+  if (!isNaN(direct) && String(direct) === orderNumber.trim()) return direct
+  // Strip non-numeric prefix/suffix: "#1234", "Order-1234", "WC1234"
+  const digits = orderNumber.replace(/[^0-9]/g, '')
+  if (!digits) return null
+  return parseInt(digits)
+}
+
 export async function POST() {
   try {
     const publicKey = await getSetting('sendcloud_public_key')
     const secretKey = await getSetting('sendcloud_secret_key')
 
     if (!publicKey || !secretKey) {
-      return NextResponse.json({ error: 'SendCloud API-sleutels niet ingesteld. Ga naar Kosten & instellingen.' }, { status: 400 })
+      return NextResponse.json({ error: 'SendCloud API-sleutels niet ingesteld.' }, { status: 400 })
     }
 
     let page = 1
     let updated = 0
     let skipped = 0
     let totalFetched = 0
+    const sampleOrderNumbers: string[] = []
 
     while (true) {
       const data = await fetchParcels(publicKey, secretKey, page)
@@ -52,14 +64,18 @@ export async function POST() {
       totalFetched += parcels.length
 
       for (const parcel of parcels) {
+        // Collect samples from first page for debugging
+        if (page === 1 && sampleOrderNumbers.length < 5 && parcel.order_number) {
+          sampleOrderNumbers.push(`"${parcel.order_number}" (price: ${parcel.price?.value ?? 'null'})`)
+        }
+
         if (!parcel.order_number || !parcel.price?.value) { skipped++; continue }
 
         const cost = parseFloat(parcel.price.value)
         if (isNaN(cost) || cost <= 0) { skipped++; continue }
 
-        // WooCommerce order IDs are stored as integers; order_number should match
-        const orderId = parseInt(parcel.order_number)
-        if (isNaN(orderId)) { skipped++; continue }
+        const orderId = extractOrderId(parcel.order_number)
+        if (!orderId) { skipped++; continue }
 
         const result = await prisma.order.updateMany({
           where: { id: orderId },
@@ -69,16 +85,16 @@ export async function POST() {
         else skipped++
       }
 
-      if (parcels.length < 100) break // last page
+      if (parcels.length < 100) break
       page++
-      if (page > 50) break // safety: max 5000 parcels per sync
+      if (page > 50) break
     }
 
     await prisma.syncLog.create({
       data: { type: 'sendcloud', status: 'success', message: `${updated} zendingen bijgewerkt`, itemCount: updated },
     })
 
-    return NextResponse.json({ ok: true, updated, skipped, totalFetched })
+    return NextResponse.json({ ok: true, updated, skipped, totalFetched, sampleOrderNumbers })
   } catch (err) {
     await prisma.syncLog.create({
       data: { type: 'sendcloud', status: 'failed', message: String(err), itemCount: 0 },
