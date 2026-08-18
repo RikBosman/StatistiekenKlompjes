@@ -9,7 +9,6 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Legend,
 } from 'recharts'
 import type { MarginData } from '@/lib/analytics'
 
@@ -22,51 +21,97 @@ interface MetricDef {
   label: string
   color: string
   format: 'currency' | 'number' | 'pct' | 'roas'
-  getValue: (d: MarginData) => number | null
 }
 
 const METRICS: MetricDef[] = [
-  { key: 'revenueExclBtw',            label: 'Omzet excl. BTW',         color: '#2563eb', format: 'currency', getValue: d => d.revenueExclBtw },
-  { key: 'totalOrders',               label: 'Orders',                   color: '#7c3aed', format: 'number',   getValue: d => d.totalOrders },
-  { key: 'avgOrderValue',             label: 'Gem. orderwaarde',         color: '#0891b2', format: 'currency', getValue: d => d.avgOrderValue },
-  { key: 'adSpend',                   label: 'Google Ads spend',         color: '#ea580c', format: 'currency', getValue: d => d.adSpend },
-  { key: 'roas',                      label: 'ROAS',                     color: '#16a34a', format: 'roas',     getValue: d => d.roas },
-  { key: 'contributionMarginPerAd',   label: 'CM / Google-euro',         color: '#15803d', format: 'roas',     getValue: d => d.adSpend > 0 ? d.contributionMargin / d.adSpend : null },
-  { key: 'cogs',                      label: 'Inkoopwaarde',             color: '#b45309', format: 'currency', getValue: d => d.cogs },
-  { key: 'actualShipping',            label: 'Verzendkosten',            color: '#6b7280', format: 'currency', getValue: d => d.actualShipping },
-  { key: 'packagingCost',             label: 'Verpakkingskosten',        color: '#9ca3af', format: 'currency', getValue: d => d.packagingCost },
-  { key: 'paymentCost',               label: 'Betaalkosten',             color: '#d1d5db', format: 'currency', getValue: d => d.paymentCost },
-  { key: 'contributionMargin',        label: 'Contributiemarge',         color: '#059669', format: 'currency', getValue: d => d.contributionMargin },
-  { key: 'contributionMarginPerOrder',label: 'CM per order',             color: '#10b981', format: 'currency', getValue: d => d.contributionMarginPerOrder },
+  { key: 'revenueExclBtw',             label: 'Omzet excl. BTW',    color: '#2563eb', format: 'currency' },
+  { key: 'totalOrders',                label: 'Orders',              color: '#7c3aed', format: 'number'   },
+  { key: 'avgOrderValue',              label: 'Gem. orderwaarde',    color: '#0891b2', format: 'currency' },
+  { key: 'adSpend',                    label: 'Google Ads spend',    color: '#ea580c', format: 'currency' },
+  { key: 'roas',                       label: 'ROAS',                color: '#16a34a', format: 'roas'     },
+  { key: 'contributionMarginPerAd',    label: 'CM / Google-euro',    color: '#15803d', format: 'roas'     },
+  { key: 'cogs',                       label: 'Inkoopwaarde',        color: '#b45309', format: 'currency' },
+  { key: 'actualShipping',             label: 'Verzendkosten',       color: '#6b7280', format: 'currency' },
+  { key: 'packagingCost',              label: 'Verpakkingskosten',   color: '#9ca3af', format: 'currency' },
+  { key: 'paymentCost',                label: 'Betaalkosten',        color: '#d97706', format: 'currency' },
+  { key: 'contributionMargin',         label: 'Contributiemarge',    color: '#059669', format: 'currency' },
+  { key: 'contributionMarginPerOrder', label: 'CM per order',        color: '#10b981', format: 'currency' },
 ]
 
-function fmt(value: number | null, format: 'currency' | 'number' | 'pct' | 'roas'): string {
+type TimeView = 'month' | 'quarter' | 'year'
+
+type ChartRow = Record<string, number | null | string>
+
+function groupKey(month: string, view: TimeView): string {
+  const [year, m] = month.split('-').map(Number)
+  if (view === 'year') return String(year)
+  if (view === 'quarter') return `${year}-Q${Math.ceil(m / 3)}`
+  return month
+}
+
+function fmtLabel(key: string, view: TimeView): string {
+  if (view === 'year' || view === 'quarter') return key.replace('-', ' ')
+  const [year, m] = key.split('-').map(Number)
+  return new Date(year, m - 1, 1).toLocaleDateString('nl-NL', { month: 'short', year: '2-digit' })
+}
+
+function buildRows(data: MarginData[], view: TimeView): ChartRow[] {
+  const source = view === 'month' ? data.slice(-12) : data
+  const groups = new Map<string, MarginData[]>()
+  for (const d of source) {
+    const k = groupKey(d.month, view)
+    if (!groups.has(k)) groups.set(k, [])
+    groups.get(k)!.push(d)
+  }
+
+  return [...groups.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, items]) => {
+      const s = <K extends keyof MarginData>(fn: (d: MarginData) => number) =>
+        items.reduce((acc, d) => acc + fn(d), 0)
+
+      const revenue = s(d => d.revenue)
+      const adSpend = s(d => d.adSpend)
+      const totalOrders = s(d => d.totalOrders)
+      const contributionMargin = s(d => d.contributionMargin)
+
+      return {
+        month: fmtLabel(key, view),
+        revenueExclBtw: s(d => d.revenueExclBtw),
+        totalOrders,
+        avgOrderValue: totalOrders > 0 ? revenue / totalOrders : 0,
+        adSpend,
+        roas: adSpend > 0 ? revenue / adSpend : null,
+        contributionMarginPerAd: adSpend > 0 ? contributionMargin / adSpend : null,
+        cogs: s(d => d.cogs),
+        actualShipping: s(d => d.actualShipping),
+        packagingCost: s(d => d.packagingCost),
+        paymentCost: s(d => d.paymentCost),
+        contributionMargin,
+        contributionMarginPerOrder: totalOrders > 0 ? contributionMargin / totalOrders : 0,
+      } as ChartRow
+    })
+}
+
+function fmt(value: number | null, format: MetricDef['format']): string {
   if (value === null) return '—'
   if (format === 'currency') return `€${value.toFixed(2)}`
   if (format === 'number') return String(Math.round(value))
   if (format === 'pct') return `${value.toFixed(1)}%`
-  if (format === 'roas') return `${value.toFixed(2)}×`
-  return String(value)
+  return `${value.toFixed(2)}×`
 }
 
-function fmtMonth(mk: string): string {
-  const [year, month] = mk.split('-').map(Number)
-  const d = new Date(year, month - 1, 1)
-  return d.toLocaleDateString('nl-NL', { month: 'short', year: '2-digit' })
-}
-
-// Custom tooltip
-function CustomTooltip({ active, payload, label }: { active?: boolean; payload?: { name: string; value: number | null; color: string; dataKey: string }[]; label?: string }) {
+function CustomTooltip({ active, payload }: { active?: boolean; payload?: { color: string; dataKey: string; value: number | null }[] }) {
   if (!active || !payload?.length) return null
+  const row = payload[0]
   return (
     <div className="bg-white border border-slate-200 rounded-lg shadow-lg p-3 text-xs max-w-xs">
-      <p className="font-semibold text-slate-700 mb-2">{label}</p>
       {payload.map((p) => {
-        const metric = METRICS.find(m => m.key === p.dataKey)
+        const m = METRICS.find(m => m.key === p.dataKey)
         return (
           <div key={p.dataKey} className="flex justify-between gap-4 mb-0.5">
-            <span style={{ color: p.color }}>{metric?.label ?? p.name}</span>
-            <span className="font-medium text-slate-800">{fmt(p.value, metric?.format ?? 'currency')}</span>
+            <span style={{ color: p.color }}>{m?.label ?? p.dataKey}</span>
+            <span className="font-medium text-slate-800">{fmt(p.value, m?.format ?? 'currency')}</span>
           </div>
         )
       })}
@@ -74,35 +119,51 @@ function CustomTooltip({ active, payload, label }: { active?: boolean; payload?:
   )
 }
 
+const TIME_VIEWS: { value: TimeView; label: string }[] = [
+  { value: 'month',   label: 'Per maand' },
+  { value: 'quarter', label: 'Per kwartaal' },
+  { value: 'year',    label: 'Per jaar' },
+]
+
 export default function MonthlyLineChart({ data }: Props) {
-  const [active, setActive] = useState<Set<string>>(new Set(['revenueExclBtw', 'contributionMargin', 'adSpend']))
+  const [active, setActive] = useState<Set<string>>(
+    new Set(['revenueExclBtw', 'contributionMargin', 'adSpend'])
+  )
+  const [timeView, setTimeView] = useState<TimeView>('month')
 
   function toggle(key: string) {
     setActive(prev => {
       const next = new Set(prev)
-      if (next.has(key)) next.delete(key)
-      else next.add(key)
+      next.has(key) ? next.delete(key) : next.add(key)
       return next
     })
   }
 
-  // Build chart rows — each point is { month, ...metricValues }
-  const chartData = useMemo(() => data.map(d => {
-    const row: Record<string, number | null | string> = { month: fmtMonth(d.month) }
-    for (const m of METRICS) row[m.key] = m.getValue(d)
-    return row
-  }), [data])
+  const chartData = useMemo(() => buildRows(data, timeView), [data, timeView])
 
-  // Determine which Y-axis to use per metric (currency vs dimensionless)
-  // Left axis: currency. Right axis: counts, ROAS, multiples.
-  const leftMetrics = METRICS.filter(m => m.format === 'currency')
-  const rightMetrics = METRICS.filter(m => m.format !== 'currency')
-  const hasLeft = [...active].some(k => leftMetrics.find(m => m.key === k))
-  const hasRight = [...active].some(k => rightMetrics.find(m => m.key === k))
+  const currencyActive = [...active].some(k => METRICS.find(m => m.key === k && m.format === 'currency'))
+  const otherActive    = [...active].some(k => METRICS.find(m => m.key === k && m.format !== 'currency'))
 
   return (
     <div>
-      {/* Checkbox grid */}
+      {/* Time view switcher */}
+      <div className="flex items-center gap-1 mb-5">
+        {TIME_VIEWS.map(tv => (
+          <button
+            key={tv.value}
+            onClick={() => setTimeView(tv.value)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              timeView === tv.value
+                ? 'bg-slate-800 text-white'
+                : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+            }`}
+          >
+            {tv.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Metric toggles */}
       <div className="flex flex-wrap gap-2 mb-5">
         {METRICS.map(m => (
           <button
@@ -115,7 +176,10 @@ export default function MonthlyLineChart({ data }: Props) {
             }`}
             style={active.has(m.key) ? { background: m.color, borderColor: m.color } : {}}
           >
-            <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: active.has(m.key) ? 'white' : m.color }} />
+            <span
+              className="w-2 h-2 rounded-full flex-shrink-0"
+              style={{ background: active.has(m.key) ? 'white' : m.color }}
+            />
             {m.label}
           </button>
         ))}
@@ -125,10 +189,10 @@ export default function MonthlyLineChart({ data }: Props) {
         <p className="text-slate-400 text-sm text-center py-12">Selecteer minstens één lijn hierboven.</p>
       ) : (
         <ResponsiveContainer width="100%" height={340}>
-          <LineChart data={chartData} margin={{ top: 8, right: hasRight ? 60 : 16, left: 8, bottom: 0 }}>
+          <LineChart data={chartData} margin={{ top: 8, right: otherActive ? 60 : 16, left: 8, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
             <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94a3b8' }} tickLine={false} axisLine={false} />
-            {hasLeft && (
+            {currencyActive && (
               <YAxis
                 yAxisId="left"
                 orientation="left"
@@ -139,7 +203,7 @@ export default function MonthlyLineChart({ data }: Props) {
                 width={62}
               />
             )}
-            {hasRight && (
+            {otherActive && (
               <YAxis
                 yAxisId="right"
                 orientation="right"

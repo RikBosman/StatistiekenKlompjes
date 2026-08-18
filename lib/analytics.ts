@@ -72,6 +72,7 @@ export function periodToRange(period = '30d'): { since: Date; until: Date; month
     case '6m':  return { since: subMonths(now, 6),  until: now, months: 6,  label: 'Laatste 6 maanden' }
     case 'ytd': return { since: startOfYear(now), until: now, months: Math.max(1, differenceInMonths(now, startOfYear(now)) + 1), label: 'Dit jaar' }
     case '1y':  return { since: subMonths(now, 12), until: now, months: 12, label: 'Laatste 12 maanden' }
+    case '3y':  return { since: subMonths(now, 36), until: now, months: 36, label: 'Laatste 3 jaar' }
     default:    return { since: subDays(now, 30),   until: now, months: 1,  label: 'Laatste 30 dagen' }
   }
 }

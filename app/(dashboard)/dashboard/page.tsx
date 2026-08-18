@@ -26,7 +26,7 @@ export default async function DashboardPage({
     ;[stats, marginData, trendData, syncLogs] = await Promise.all([
       getOverviewStats(period),
       getMarginData(period === '7d' || period === '30d' ? '6m' : period),
-      getMarginData('1y'),
+      getMarginData('3y'),
       prisma.syncLog.findMany({ orderBy: { createdAt: 'desc' }, take: 5 }),
     ])
     dbConnected = true
