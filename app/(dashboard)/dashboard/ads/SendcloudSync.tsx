@@ -16,6 +16,7 @@ export default function SendcloudSync({ publicKey, secretKey }: Props) {
   const [syncState, setSyncState] = useState<'idle' | 'syncing' | 'done' | 'error'>('idle')
   const [syncMsg, setSyncMsg] = useState('')
   const [syncDetail, setSyncDetail] = useState<string[]>([])
+  const [syncDebug, setSyncDebug] = useState('')
 
   async function saveKeys() {
     setSaveState('saving')
@@ -37,6 +38,7 @@ export default function SendcloudSync({ publicKey, secretKey }: Props) {
       setSyncState('done')
       setSyncMsg(`${data.savedMonths} maanden opgeslagen (${data.totalFetched} zendingen opgehaald)`)
       setSyncDetail(data.months ?? [])
+      setSyncDebug(`Overgeslagen: ${data.skippedNoPrice} geen prijs, ${data.skippedNoDate} geen datum. Velden: ${(data.debugParcelFields ?? []).join(', ')}`)
       if (data.savedMonths > 0) router.refresh()
     } else {
       setSyncState('error')
@@ -98,6 +100,9 @@ export default function SendcloudSync({ publicKey, secretKey }: Props) {
           <p className="text-green-700 text-sm font-medium">✓ {syncMsg}</p>
           {syncDetail.length > 0 && (
             <p className="text-slate-500 text-xs mt-1">{syncDetail.join(' · ')}</p>
+          )}
+          {syncDebug && (
+            <p className="text-slate-400 text-xs mt-1 font-mono">{syncDebug}</p>
           )}
         </div>
       )}
