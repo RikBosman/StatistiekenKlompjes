@@ -15,7 +15,7 @@ export async function POST() {
     const client = axios.create({
       baseURL: `${baseURL}/wp-json/wc/v3`,
       auth: { username: consumerKey, password: consumerSecret },
-      timeout: 30000,
+      timeout: 60000,
     })
 
     let page = 1
@@ -32,14 +32,13 @@ export async function POST() {
 
       totalFetched += orders.length
 
-      for (const o of orders) {
-        if (!o.number) continue
-        const result = await prisma.order.updateMany({
-          where: { id: o.id },
-          data: { orderNumber: o.number },
-        })
-        if (result.count > 0) updated++
-      }
+      // Batch all updates for this page in a single transaction
+      const results = await prisma.$transaction(
+        orders
+          .filter(o => !!o.number)
+          .map(o => prisma.order.updateMany({ where: { id: o.id }, data: { orderNumber: o.number } }))
+      )
+      updated += results.reduce((sum, r) => sum + r.count, 0)
 
       const totalPages = parseInt(res.headers['x-wp-totalpages'] || '1', 10)
       if (page >= totalPages) break
