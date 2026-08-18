@@ -50,7 +50,8 @@ export async function middleware(req: NextRequest) {
   // IP check — block anything not from the allowed IP
   const ip = clientIp(req)
   if (ip !== ALLOWED_IP) {
-    return new Response(blockedHtml, {
+    const html = blockedHtml.replace('vanaf jouw IP-adres.', `vanaf jouw IP-adres (<code>${ip}</code>).`)
+    return new Response(html, {
       status: 403,
       headers: { 'Content-Type': 'text/html; charset=utf-8' },
     })
