@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import axios from 'axios'
 
 interface SendcloudParcel {
   id: number
@@ -32,13 +33,68 @@ async function getSetting(key: string): Promise<string | null> {
   return s?.value ?? null
 }
 
-function extractNumericId(orderNumber: string): number | null {
-  if (!orderNumber) return null
-  const direct = parseInt(orderNumber)
-  if (!isNaN(direct) && String(direct) === orderNumber.trim()) return direct
-  const digits = orderNumber.replace(/[^0-9]/g, '')
-  if (!digits) return null
-  return parseInt(digits)
+// Build a lookup map: every known form of an order number → DB order id
+async function buildOrderMap(): Promise<Map<string, number>> {
+  const map = new Map<string, number>()
+
+  const wcUrl = process.env.WOOCOMMERCE_URL
+  const wcKey = process.env.WOOCOMMERCE_CONSUMER_KEY
+  const wcSecret = process.env.WOOCOMMERCE_CONSUMER_SECRET
+
+  if (wcUrl && wcKey && wcSecret) {
+    // Fetch all WC orders (id + number) in parallel batches of 5 pages
+    const client = axios.create({
+      baseURL: `${wcUrl}/wp-json/wc/v3`,
+      auth: { username: wcKey, password: wcSecret },
+      timeout: 30000,
+    })
+
+    const first = await client.get<{ id: number; number: string }[]>('/orders', {
+      params: { per_page: 100, page: 1, _fields: 'id,number', status: 'any' },
+    })
+    const totalPages = parseInt(first.headers['x-wp-totalpages'] || '1', 10)
+    const wcOrders: { id: number; number: string }[] = [...first.data]
+
+    for (let start = 2; start <= totalPages; start += 5) {
+      const pages = Array.from({ length: Math.min(5, totalPages - start + 1) }, (_, i) => start + i)
+      const results = await Promise.all(
+        pages.map(p => client.get<{ id: number; number: string }[]>('/orders', {
+          params: { per_page: 100, page: p, _fields: 'id,number', status: 'any' },
+        }))
+      )
+      for (const r of results) wcOrders.push(...r.data)
+    }
+
+    // Populate map with all known representations
+    for (const o of wcOrders) {
+      if (!o.number) continue
+      const num = o.number.trim()
+      map.set(num, o.id)                             // "KL-176814" or "176814"
+      map.set(num.replace(/[^0-9]/g, ''), o.id)      // "176814" (digits only)
+    }
+
+    // Backfill orderNumber in DB as a side-effect (no await on individual, batch it)
+    const chunks: { id: number; number: string }[][] = []
+    for (let i = 0; i < wcOrders.length; i += 100) {
+      chunks.push(wcOrders.slice(i, i + 100).filter(o => !!o.number))
+    }
+    for (const chunk of chunks) {
+      await prisma.$transaction(
+        chunk.map(o => prisma.order.updateMany({ where: { id: o.id }, data: { orderNumber: o.number } }))
+      ).catch(() => { /* ignore backfill errors */ })
+    }
+  } else {
+    // Fallback: use already-stored orderNumbers from DB
+    const orders = await prisma.order.findMany({ select: { id: true, orderNumber: true } })
+    for (const o of orders) {
+      if (!o.orderNumber) continue
+      const num = o.orderNumber.trim()
+      map.set(num, o.id)
+      map.set(num.replace(/[^0-9]/g, ''), o.id)
+    }
+  }
+
+  return map
 }
 
 export async function POST() {
@@ -50,11 +106,13 @@ export async function POST() {
       return NextResponse.json({ error: 'SendCloud API-sleutels niet ingesteld.' }, { status: 400 })
     }
 
+    // Build order number → DB id mapping
+    const orderMap = await buildOrderMap()
+
+    // Collect all SendCloud parcels
     let page = 1
-    let updated = 0
-    let skipped = 0
     let totalFetched = 0
-    const sampleOrderNumbers: string[] = []
+    const costByOrderId = new Map<number, number>() // db order id → shipping cost
 
     while (true) {
       const data = await fetchParcels(publicKey, secretKey, page)
@@ -62,48 +120,18 @@ export async function POST() {
       totalFetched += parcels.length
 
       for (const parcel of parcels) {
-        // Collect samples from first page for debugging
-        if (page === 1 && sampleOrderNumbers.length < 5 && parcel.order_number) {
-          sampleOrderNumbers.push(`"${parcel.order_number}" (price: ${parcel.price?.value ?? 'null'})`)
-        }
-
-        if (!parcel.order_number || !parcel.price?.value) { skipped++; continue }
-
+        if (!parcel.order_number || !parcel.price?.value) continue
         const cost = parseFloat(parcel.price.value)
-        if (isNaN(cost) || cost <= 0) { skipped++; continue }
+        if (isNaN(cost) || cost <= 0) continue
 
-        const rawNumber = parcel.order_number.trim()
+        const raw = parcel.order_number.trim()
+        const digits = raw.replace(/[^0-9]/g, '')
 
-        // Strategy 1: match on WooCommerce orderNumber field (exact, or numeric part)
-        let result = await prisma.order.updateMany({
-          where: { orderNumber: rawNumber },
-          data: { sendcloudCost: cost },
-        })
-
-        if (result.count === 0) {
-          // Strategy 2: extract digits and match numeric part of orderNumber
-          const numericStr = rawNumber.replace(/[^0-9]/g, '')
-          if (numericStr) {
-            result = await prisma.order.updateMany({
-              where: { orderNumber: numericStr },
-              data: { sendcloudCost: cost },
-            })
-          }
+        const dbId = orderMap.get(raw) ?? orderMap.get(digits)
+        if (dbId !== undefined) {
+          // Keep the highest cost if a parcel appears multiple times for the same order
+          costByOrderId.set(dbId, (costByOrderId.get(dbId) ?? 0) + cost)
         }
-
-        if (result.count === 0) {
-          // Strategy 3: fall back to matching by post id
-          const orderId = extractNumericId(rawNumber)
-          if (orderId) {
-            result = await prisma.order.updateMany({
-              where: { id: orderId },
-              data: { sendcloudCost: cost },
-            })
-          }
-        }
-
-        if (result.count > 0) updated++
-        else skipped++
       }
 
       if (parcels.length < 100) break
@@ -111,11 +139,24 @@ export async function POST() {
       if (page > 50) break
     }
 
+    // Batch-update all matched orders
+    let updated = 0
+    const entries = [...costByOrderId.entries()]
+    for (let i = 0; i < entries.length; i += 100) {
+      const chunk = entries.slice(i, i + 100)
+      const results = await prisma.$transaction(
+        chunk.map(([id, cost]) => prisma.order.updateMany({ where: { id }, data: { sendcloudCost: cost } }))
+      )
+      updated += results.reduce((sum, r) => sum + r.count, 0)
+    }
+
+    const skipped = totalFetched - [...costByOrderId.values()].length
+
     await prisma.syncLog.create({
       data: { type: 'sendcloud', status: 'success', message: `${updated} zendingen bijgewerkt`, itemCount: updated },
     })
 
-    return NextResponse.json({ ok: true, updated, skipped, totalFetched, sampleOrderNumbers })
+    return NextResponse.json({ ok: true, updated, skipped, totalFetched, mapSize: orderMap.size })
   } catch (err) {
     await prisma.syncLog.create({
       data: { type: 'sendcloud', status: 'failed', message: String(err), itemCount: 0 },
