@@ -47,9 +47,13 @@ export async function POST() {
     const sampleInvoice = invoices[0] ?? null
 
     // Group invoice amounts by month using invoice date
+    const now = new Date()
+    const currentYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+
     const costByMonth = new Map<string, number>()
     let skippedNoDate = 0
     let skippedNoAmount = 0
+    let skippedFuture = 0
     const noDateSamples: unknown[] = []
 
     for (const inv of invoices) {
@@ -70,6 +74,8 @@ export async function POST() {
       if (isNaN(amount) || amount <= 0) { skippedNoAmount++; continue }
 
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+      // Skip future months
+      if (key > currentYM) { skippedFuture++; continue }
       costByMonth.set(key, (costByMonth.get(key) ?? 0) + amount)
     }
 
@@ -97,6 +103,7 @@ export async function POST() {
       savedMonths,
       skippedNoDate,
       skippedNoAmount,
+      skippedFuture,
       months: monthResults,
       debugFields: sampleFields,
       debugSample: sampleInvoice,
