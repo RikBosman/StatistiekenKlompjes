@@ -92,6 +92,18 @@ export async function POST() {
       costByMonth.set(key, (costByMonth.get(key) ?? 0) + amount)
     }
 
+    // Remove any future months that may have been saved by earlier syncs
+    const [currentYear, currentMonth] = currentYM.split('-').map(Number)
+    await prisma.shippingInvoice.deleteMany({
+      where: {
+        filename: 'SendCloud API',
+        OR: [
+          { year: { gt: currentYear } },
+          { year: currentYear, month: { gt: currentMonth } },
+        ],
+      },
+    })
+
     // Upsert monthly totals into ShippingInvoice
     let savedMonths = 0
     const monthResults: string[] = []
