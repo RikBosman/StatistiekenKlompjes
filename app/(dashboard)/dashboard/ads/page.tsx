@@ -1,40 +1,79 @@
 import { prisma } from '@/lib/db'
 import { formatCurrency } from '@/lib/utils'
 import DailyRateForm from './DailyRateForm'
+import SettingInput from './SettingInput'
 
 export const revalidate = 0
 
+async function getSetting(key: string, fallback: number) {
+  const s = await prisma.settings.findUnique({ where: { key } })
+  return s ? parseFloat(s.value) : fallback
+}
+
 export default async function AdsPage() {
-  const setting = await prisma.settings.findUnique({ where: { key: 'ads_daily_rate' } })
-  const dailyRate = setting ? parseFloat(setting.value) : 0
+  const [dailyRate, btwRate, paymentCostPerOrder] = await Promise.all([
+    getSetting('ads_daily_rate', 0),
+    getSetting('btw_rate', 21),
+    getSetting('payment_cost_per_order', 0.29),
+  ])
 
   return (
     <div className="p-8">
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold text-slate-900">Kosten invoeren</h2>
+      <div className="mb-8">
+        <h2 className="text-2xl font-bold text-slate-900">Kosten &amp; instellingen</h2>
         <p className="text-slate-500 text-sm mt-1">
-          Stel het dagelijkse Google Ads budget in — wordt automatisch doorgerekend in alle marges
+          Alle kostenposten die doorgerekend worden in de contributiemarge
         </p>
       </div>
 
-      {dailyRate > 0 && (
-        <div className="grid grid-cols-3 gap-4 mb-6">
-          <div className="bg-orange-50 rounded-xl border border-orange-200 p-5">
-            <p className="text-xs text-orange-600 uppercase tracking-wide font-medium mb-2">Per dag</p>
-            <p className="text-2xl font-bold text-orange-700">{formatCurrency(dailyRate)}</p>
-          </div>
-          <div className="bg-white rounded-xl border border-slate-200 p-5">
-            <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-2">Per maand (30d)</p>
-            <p className="text-2xl font-bold text-slate-900">{formatCurrency(dailyRate * 30)}</p>
-          </div>
-          <div className="bg-white rounded-xl border border-slate-200 p-5">
-            <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-2">Per jaar (365d)</p>
-            <p className="text-2xl font-bold text-slate-900">{formatCurrency(dailyRate * 365)}</p>
+      <div className="space-y-6">
+        {/* Google Ads */}
+        <div>
+          <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">Google Ads</h3>
+          {dailyRate > 0 && (
+            <div className="grid grid-cols-3 gap-4 mb-4">
+              <div className="bg-orange-50 rounded-xl border border-orange-200 p-5">
+                <p className="text-xs text-orange-600 uppercase tracking-wide font-medium mb-2">Per dag</p>
+                <p className="text-2xl font-bold text-orange-700">{formatCurrency(dailyRate)}</p>
+              </div>
+              <div className="bg-white rounded-xl border border-slate-200 p-5">
+                <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-2">Per maand (30d)</p>
+                <p className="text-2xl font-bold text-slate-900">{formatCurrency(dailyRate * 30)}</p>
+              </div>
+              <div className="bg-white rounded-xl border border-slate-200 p-5">
+                <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-2">Per jaar (365d)</p>
+                <p className="text-2xl font-bold text-slate-900">{formatCurrency(dailyRate * 365)}</p>
+              </div>
+            </div>
+          )}
+          <DailyRateForm current={dailyRate} />
+        </div>
+
+        {/* BTW & betaalkosten */}
+        <div>
+          <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">BTW &amp; betaalkosten</h3>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <SettingInput
+              settingKey="btw_rate"
+              label="BTW-tarief"
+              description="Wordt gebruikt om webshopomzet excl. BTW te berekenen. Standaard 21% voor de meeste producten."
+              current={btwRate}
+              suffix="%"
+              step="1"
+              placeholder="21"
+            />
+            <SettingInput
+              settingKey="payment_cost_per_order"
+              label="Betaalkosten per order"
+              description="Vaste transactiekosten per bestelling (bijv. iDEAL via Mollie €0,29). Wordt vermenigvuldigd met het aantal orders."
+              current={paymentCostPerOrder}
+              prefix="€"
+              step="0.01"
+              placeholder="0.29"
+            />
           </div>
         </div>
-      )}
-
-      <DailyRateForm current={dailyRate} />
+      </div>
     </div>
   )
 }

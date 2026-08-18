@@ -1,9 +1,13 @@
 import { prisma } from './db'
 import { startOfMonth, subMonths, endOfMonth, subDays, startOfYear, differenceInMonths } from 'date-fns'
 
+async function getSetting(key: string, fallback: number): Promise<number> {
+  const s = await prisma.settings.findUnique({ where: { key } })
+  return s ? parseFloat(s.value) : fallback
+}
+
 async function getAdsDailyRate(): Promise<number> {
-  const setting = await prisma.settings.findUnique({ where: { key: 'ads_daily_rate' } })
-  return setting ? parseFloat(setting.value) : 0
+  return getSetting('ads_daily_rate', 0)
 }
 
 function calcAdSpendForRange(dailyRate: number, since: Date, until: Date): number {
@@ -261,28 +265,42 @@ export async function getProductPerformance(period = '30d'): Promise<ProductPerf
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface OverviewStats {
+  // Omzet
   totalRevenue: number
+  revenueExclBtw: number
   totalOrders: number
-  totalCustomers: number
-  logoTekstCustomers: number
   avgOrderValue: number
+  // Google Ads
+  adSpend: number
+  googleCostPerOrder: number
+  roas: number | null
+  // Marges
   cogs: number
+  productMarginPct: number
   shippingCharged: number
   actualShipping: number
   packagingCost: number
-  adSpend: number
-  grossMargin: number
-  grossMarginPct: number
-  roas: number | null
+  netShippingCost: number
+  paymentCost: number
+  // Contributiemarge
+  contributionMargin: number
+  contributionMarginPerOrder: number
+  contributionMarginPerAdEuro: number | null
+  // Klanten
+  totalCustomers: number
+  logoTekstCustomers: number
   newCustomerRevenue: number
   returningCustomerRevenue: number
   newCustomerCount: number
   returningCustomerCount: number
+  // Trends
   revenueTrend: number
   ordersTrend: number
   avgOrderTrend: number
   periodLabel: string
-  // legacy aliases
+  // legacy
+  grossMargin: number
+  grossMarginPct: number
   totalRevenue30d: number
   totalOrders30d: number
   avgOrderValue30d: number
@@ -296,7 +314,7 @@ export async function getOverviewStats(period = '30d'): Promise<OverviewStats> {
 
   const { byId: cogsById, bySku: cogsBySku } = await buildCogsLookup()
 
-  const [orders, ordersPrev, totalCustomers, logoTekstCustomers, adsDailyRate] = await Promise.all([
+  const [orders, ordersPrev, totalCustomers, logoTekstCustomers, adsDailyRate, btwRate, paymentCostPerOrder] = await Promise.all([
     prisma.order.findMany({
       where: { date: { gte: since, lte: until }, status: { notIn: ['cancelled', 'refunded'] } },
       include: { lineItems: true },
@@ -324,6 +342,8 @@ export async function getOverviewStats(period = '30d'): Promise<OverviewStats> {
       },
     }),
     getAdsDailyRate(),
+    getSetting('btw_rate', 21),
+    getSetting('payment_cost_per_order', 0.29),
   ])
 
   const totalRevenue = orders.reduce((s, o) => s + o.total, 0)
@@ -346,6 +366,16 @@ export async function getOverviewStats(period = '30d'): Promise<OverviewStats> {
   const grossMargin = totalRevenue - cogs - actualShipping - packagingCost - adSpend
   const grossMarginPct = totalRevenue > 0 ? (grossMargin / totalRevenue) * 100 : 0
   const roas = adSpend > 0 ? totalRevenue / adSpend : null
+
+  // Contribution margin KPIs
+  const revenueExclBtw = totalRevenue / (1 + btwRate / 100)
+  const googleCostPerOrder = totalOrders > 0 ? adSpend / totalOrders : 0
+  const productMarginPct = revenueExclBtw > 0 ? ((revenueExclBtw - cogs) / revenueExclBtw) * 100 : 0
+  const netShippingCost = actualShipping + packagingCost - shippingCharged
+  const paymentCost = paymentCostPerOrder * totalOrders
+  const contributionMargin = revenueExclBtw - cogs - netShippingCost - paymentCost - adSpend
+  const contributionMarginPerOrder = totalOrders > 0 ? contributionMargin / totalOrders : 0
+  const contributionMarginPerAdEuro = adSpend > 0 ? contributionMargin / adSpend : null
 
   // New vs returning: compare each customer's all-time first order date against period start
   const periodCustomerIds = Array.from(
@@ -386,18 +416,24 @@ export async function getOverviewStats(period = '30d'): Promise<OverviewStats> {
 
   return {
     totalRevenue,
+    revenueExclBtw,
     totalOrders,
-    totalCustomers,
-    logoTekstCustomers,
     avgOrderValue,
+    adSpend,
+    googleCostPerOrder,
+    roas,
     cogs,
+    productMarginPct,
     shippingCharged,
     actualShipping,
     packagingCost,
-    adSpend,
-    grossMargin,
-    grossMarginPct,
-    roas,
+    netShippingCost,
+    paymentCost,
+    contributionMargin,
+    contributionMarginPerOrder,
+    contributionMarginPerAdEuro,
+    totalCustomers,
+    logoTekstCustomers,
     newCustomerRevenue,
     returningCustomerRevenue,
     newCustomerCount: newCustomerIds.size,
@@ -406,6 +442,8 @@ export async function getOverviewStats(period = '30d'): Promise<OverviewStats> {
     ordersTrend: pct(totalOrders, prevOrders),
     avgOrderTrend: pct(avgOrderValue, prevAvg),
     periodLabel: label,
+    grossMargin,
+    grossMarginPct,
     totalRevenue30d: totalRevenue,
     totalOrders30d: totalOrders,
     avgOrderValue30d: avgOrderValue,
