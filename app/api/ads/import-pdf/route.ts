@@ -1,8 +1,18 @@
 import { NextResponse } from 'next/server'
 
 const MONTHS_NL: Record<string, number> = {
-  januari: 1, februari: 2, maart: 3, april: 4, mei: 5, juni: 6,
-  juli: 7, augustus: 8, september: 9, oktober: 10, november: 11, december: 12,
+  januari: 1, jan: 1,
+  februari: 2, feb: 2,
+  maart: 3, mrt: 3,
+  april: 4, apr: 4,
+  mei: 5,
+  juni: 6, jun: 6,
+  juli: 7, jul: 7,
+  augustus: 8, aug: 8,
+  september: 9, sep: 9,
+  oktober: 10, okt: 10,
+  november: 11, nov: 11,
+  december: 12, dec: 12,
 }
 
 function parseMoney(s: string): number {
@@ -20,34 +30,54 @@ function extractFromText(text: string): { year: number | null; month: number | n
   let amountExclBtw: number | null = null
 
   // --- Period extraction ---
-  // "Facturatieperiode: 1 jan. 2025 – 31 jan. 2025"
-  // "Factuurperiode: 01-01-2025 t/m 31-01-2025"
-  // "jan 2025" / "januari 2025"
 
+  // Numeric date in period: "01-01-2025"
   const periodeNumeric = text.match(/(?:periode|period)[^\d]*(\d{1,2})[/-](\d{2})[/-](\d{4})/i)
   if (periodeNumeric) {
     month = parseInt(periodeNumeric[2])
     year = parseInt(periodeNumeric[3])
   }
 
+  // "Overzicht voor 1 apr 2025" or "Overzicht voor 1 april 2025" (Google Ads)
   if (!month) {
-    const periodeText = text.match(/(?:periode|period)[^\n]*?(\w+)\s+(20\d{2})/i)
-    if (periodeText) {
-      month = MONTHS_NL[periodeText[1].toLowerCase()] ?? null
-      year = parseInt(periodeText[2])
+    const overzicht = text.match(/[Oo]verzicht\s+voor\s+\d{1,2}\s+(\w+\.?)\s+(20\d{2})/i)
+    if (overzicht) {
+      const mn = overzicht[1].replace(/\.$/, '').toLowerCase()
+      month = MONTHS_NL[mn] ?? null
+      year = parseInt(overzicht[2])
     }
   }
 
-  // "Factuurdatum" / "Betalingsdatum"
+  // "Factuurdatum ... 30 apr 2025" — date anywhere after the label
   if (!month) {
-    const factuur = text.match(/(?:factuur|invoice)[^\d]*(\d{1,2})[/-](\d{2})[/-](\d{4})/i)
+    const factuurText = text.match(/[Ff]actuurdatum[^]*?(\d{1,2})\s+(\w+\.?)\s+(20\d{2})/)
+    if (factuurText) {
+      const mn = factuurText[2].replace(/\.$/, '').toLowerCase()
+      month = MONTHS_NL[mn] ?? null
+      year = parseInt(factuurText[3])
+    }
+  }
+
+  // Numeric "Factuurdatum: 01-04-2025"
+  if (!month) {
+    const factuur = text.match(/[Ff]actuurdatum[^\d]*(\d{1,2})[/-](\d{2})[/-](\d{4})/i)
     if (factuur) {
       month = parseInt(factuur[2])
       year = parseInt(factuur[3])
     }
   }
 
-  // Month name anywhere: "februari 2025"
+  // Any period text: "periode ... januari 2025"
+  if (!month) {
+    const periodeText = text.match(/(?:periode|period)[^\n]*?(\w+\.?)\s+(20\d{2})/i)
+    if (periodeText) {
+      const mn = periodeText[1].replace(/\.$/, '').toLowerCase()
+      month = MONTHS_NL[mn] ?? null
+      year = parseInt(periodeText[2])
+    }
+  }
+
+  // Fallback: any "mmm YYYY" or "maandnaam YYYY" in the text
   if (!month) {
     for (const [name, num] of Object.entries(MONTHS_NL)) {
       const m = text.match(new RegExp(`${name}\\.?\\s+(20\\d{2})`, 'i'))
@@ -56,13 +86,15 @@ function extractFromText(text: string): { year: number | null; month: number | n
   }
 
   // --- Amount extraction ---
-  // Google Ads invoices may show:
-  // "Totale kosten   € 1.234,56"
-  // "Subtotaal   € 1.234,56"
-  // "Totaal (excl. btw)   1.234,56"
-  // "Totale advertentiekosten   1.234,56"
+  // Google Ads NL invoice format (PDF text linearized):
+  //   "€ 10.458,57 Google Ads Totaal in EUR € 10.458,01 ..."
+  // The grand total appears BEFORE the "Totaal in EUR" label in the text stream.
 
   const amountPatterns = [
+    // Google Ads: amount precedes "Totaal in EUR" label
+    /€\s*([\d.]+,\d{2})\s+(?:Google Ads\s+)?[Tt]otaal\s+in\s+EUR/,
+    // "Totaal in EUR" label followed by amount
+    /[Tt]otaal\s+in\s+EUR[^\d€\n]*([\d.]+,\d{2})/,
     /[Tt]otale?\s+(?:advertentie)?kosten[^\d€\n]*([\d.,]+)/,
     /[Ss]ubtotaal[^\d€\n]*([\d.,]+)/,
     /[Tt]otaal\s*(?:\(excl\.?\s*(?:btw|btw\.?)\))?[^\d€\n]*([\d.,]+)/,
