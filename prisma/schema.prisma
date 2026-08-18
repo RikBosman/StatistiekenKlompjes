@@ -37,6 +37,7 @@ model Order {
   total          Float
   shippingTotal  Float
   shippingMethod String?  // WooCommerce shipping method title (e.g. "Brievenbuspakket")
+  sendcloudCost  Float?   // actual carrier cost from SendCloud API
   status         String
   syncedAt       DateTime @default(now())
 

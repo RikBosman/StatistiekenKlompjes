@@ -10,9 +10,16 @@ async function getAdsDailyRate(): Promise<number> {
   return getSetting('ads_daily_rate', 0)
 }
 
-function calcAdSpendForRange(dailyRate: number, since: Date, until: Date): number {
+async function getActualAdSpend(since: Date, until: Date, dailyRateFallback: number): Promise<{ spend: number; fromDb: boolean }> {
+  const rows = await prisma.adSpend.findMany({
+    where: { date: { gte: since, lte: until } },
+    select: { spend: true },
+  })
+  if (rows.length > 0) {
+    return { spend: rows.reduce((s, r) => s + r.spend, 0), fromDb: true }
+  }
   const days = Math.max(0, (until.getTime() - since.getTime()) / 86_400_000)
-  return dailyRate * days
+  return { spend: dailyRateFallback * days, fromDb: false }
 }
 
 export type ProductStatus = 'new_rising' | 'steady' | 'declining' | 'new_slow' | 'underperforming'
@@ -318,6 +325,7 @@ export async function getOverviewStats(period = '30d'): Promise<OverviewStats> {
     prisma.order.findMany({
       where: { date: { gte: since, lte: until }, status: { notIn: ['cancelled', 'refunded'] } },
       include: { lineItems: true },
+      // sendcloudCost is selected via include (all scalar fields are included by default)
     }),
     prisma.order.findMany({
       where: { date: { gte: prevSince, lte: prevUntil }, status: { notIn: ['cancelled', 'refunded'] } },
@@ -354,15 +362,23 @@ export async function getOverviewStats(period = '30d'): Promise<OverviewStats> {
   let cogs = 0
   let actualShipping = 0
   let packagingCost = 0
+  let sendcloudOrders = 0
   for (const order of orders) {
-    actualShipping += calcActualShipping(order.shippingMethod)
+    if (order.sendcloudCost != null) {
+      actualShipping += order.sendcloudCost
+      sendcloudOrders++
+    } else {
+      actualShipping += calcActualShipping(order.shippingMethod)
+    }
     packagingCost += calcPackagingCost(order.shippingMethod)
     for (const item of order.lineItems) {
       cogs += lookupCogs(cogsById, cogsBySku, item.productId, item.sku) * item.quantity
     }
   }
 
-  const adSpend = calcAdSpendForRange(adsDailyRate, since, until)
+  const { spend: adSpend, fromDb: adSpendFromDb } = await getActualAdSpend(since, until, adsDailyRate)
+  void adSpendFromDb // available for future use (e.g. indicator in UI)
+  void sendcloudOrders
   const grossMargin = totalRevenue - cogs - actualShipping - packagingCost - adSpend
   const grossMarginPct = totalRevenue > 0 ? (grossMargin / totalRevenue) * 100 : 0
   const roas = adSpend > 0 ? totalRevenue / adSpend : null
@@ -569,13 +585,13 @@ export async function getMarginData(period = '6m'): Promise<MarginData[]> {
 
     const revenue = orders.reduce((s, o) => s + o.total, 0)
     const shippingCharged = orders.reduce((s, o) => s + o.shippingTotal, 0)
-    const adSpend = calcAdSpendForRange(adsDailyRate, effectiveStart, effectiveEnd)
+    const { spend: adSpend } = await getActualAdSpend(effectiveStart, effectiveEnd, adsDailyRate)
 
     let cogs = 0
     let actualShipping = 0
     let packagingCost = 0
     for (const order of orders) {
-      actualShipping += calcActualShipping(order.shippingMethod)
+      actualShipping += order.sendcloudCost ?? calcActualShipping(order.shippingMethod)
       packagingCost += calcPackagingCost(order.shippingMethod)
       for (const item of order.lineItems) {
         cogs += lookupCogs(cogsById, cogsBySku, item.productId, item.sku) * item.quantity
