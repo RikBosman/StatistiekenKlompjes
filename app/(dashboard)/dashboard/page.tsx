@@ -121,7 +121,14 @@ export default async function DashboardPage({
 
       {/* Sectie: Kosten */}
       <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">Kosten</p>
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="bg-white rounded-xl border border-slate-200 p-5">
+          <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-2">Inkoopwaarde</p>
+          <p className="text-2xl font-bold text-slate-900">{formatCurrency(stats!.cogs)}</p>
+          <p className="text-xs text-slate-400 mt-1">
+            {formatCurrency(stats!.cogs / Math.max(stats!.totalOrders, 1))} per order
+          </p>
+        </div>
         <div className="bg-white rounded-xl border border-slate-200 p-5">
           <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-2">Verzendkosten (vervoerder)</p>
           <p className="text-2xl font-bold text-slate-900">{formatCurrency(stats!.netShippingCost)}</p>
