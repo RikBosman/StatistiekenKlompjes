@@ -664,7 +664,7 @@ export async function getMarginData(period = '6m'): Promise<MarginData[]> {
     const contributionMargin = revenueExclBtw - cogs - actualShipping - packagingCost - paymentCost - adSpend
     const grossMargin = revenueExclBtw - cogs - actualShipping - packagingCost - adSpend
     const grossMarginPct = revenueExclBtw > 0 ? (grossMargin / revenueExclBtw) * 100 : 0
-    const roas = adSpend > 0 ? revenueExclBtw / adSpend : null
+    const roas = adSpend > 0 ? revenue / adSpend : null
     const avgOrderValue = totalOrders > 0 ? revenue / totalOrders : 0
 
     result.push({
