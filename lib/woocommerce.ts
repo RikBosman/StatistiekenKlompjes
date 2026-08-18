@@ -17,6 +17,7 @@ export interface WCProduct {
 
 export interface WCOrder {
   id: number
+  number: string
   status: string
   date_created: string
   total: string

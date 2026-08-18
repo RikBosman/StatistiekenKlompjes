@@ -30,6 +30,7 @@ model Product {
 
 model Order {
   id             Int      @id
+  orderNumber    String?  // WooCommerce order number (customer-visible, may differ from post id)
   date           DateTime
   customerId     Int?
   customerEmail  String

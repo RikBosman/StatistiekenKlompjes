@@ -174,6 +174,7 @@ export async function syncOrders(afterDate?: string, beforeDate?: string): Promi
           where: { id: o.id },
           create: {
             id: o.id,
+            orderNumber: o.number ?? null,
             date: new Date(o.date_created),
             customerId: customer?.id ?? null,
             customerEmail,
@@ -185,6 +186,7 @@ export async function syncOrders(afterDate?: string, beforeDate?: string): Promi
             syncedAt: new Date(),
           },
           update: {
+            orderNumber: o.number ?? null,
             customerId: customer?.id ?? null,
             status: o.status,
             total: parseFloat(o.total) || 0,

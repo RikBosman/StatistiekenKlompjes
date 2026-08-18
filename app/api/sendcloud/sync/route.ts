@@ -32,12 +32,10 @@ async function getSetting(key: string): Promise<string | null> {
   return s?.value ?? null
 }
 
-function extractOrderId(orderNumber: string): number | null {
+function extractNumericId(orderNumber: string): number | null {
   if (!orderNumber) return null
-  // Try direct parse first
   const direct = parseInt(orderNumber)
   if (!isNaN(direct) && String(direct) === orderNumber.trim()) return direct
-  // Strip non-numeric prefix/suffix: "#1234", "Order-1234", "WC1234"
   const digits = orderNumber.replace(/[^0-9]/g, '')
   if (!digits) return null
   return parseInt(digits)
@@ -74,13 +72,36 @@ export async function POST() {
         const cost = parseFloat(parcel.price.value)
         if (isNaN(cost) || cost <= 0) { skipped++; continue }
 
-        const orderId = extractOrderId(parcel.order_number)
-        if (!orderId) { skipped++; continue }
+        const rawNumber = parcel.order_number.trim()
 
-        const result = await prisma.order.updateMany({
-          where: { id: orderId },
+        // Strategy 1: match on WooCommerce orderNumber field (exact, or numeric part)
+        let result = await prisma.order.updateMany({
+          where: { orderNumber: rawNumber },
           data: { sendcloudCost: cost },
         })
+
+        if (result.count === 0) {
+          // Strategy 2: extract digits and match numeric part of orderNumber
+          const numericStr = rawNumber.replace(/[^0-9]/g, '')
+          if (numericStr) {
+            result = await prisma.order.updateMany({
+              where: { orderNumber: numericStr },
+              data: { sendcloudCost: cost },
+            })
+          }
+        }
+
+        if (result.count === 0) {
+          // Strategy 3: fall back to matching by post id
+          const orderId = extractNumericId(rawNumber)
+          if (orderId) {
+            result = await prisma.order.updateMany({
+              where: { id: orderId },
+              data: { sendcloudCost: cost },
+            })
+          }
+        }
+
         if (result.count > 0) updated++
         else skipped++
       }
