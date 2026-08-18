@@ -343,7 +343,7 @@ export async function getOverviewStats(period = '30d'): Promise<OverviewStats> {
     }),
     getAdsDailyRate(),
     getSetting('btw_rate', 21),
-    getSetting('payment_cost_per_order', 0.29),
+    getSetting('payment_cost_per_order', 0.50),
   ])
 
   const totalRevenue = orders.reduce((s, o) => s + o.total, 0)
@@ -371,9 +371,9 @@ export async function getOverviewStats(period = '30d'): Promise<OverviewStats> {
   const revenueExclBtw = totalRevenue / (1 + btwRate / 100)
   const googleCostPerOrder = totalOrders > 0 ? adSpend / totalOrders : 0
   const productMarginPct = revenueExclBtw > 0 ? ((revenueExclBtw - cogs) / revenueExclBtw) * 100 : 0
-  const netShippingCost = actualShipping + packagingCost - shippingCharged
+  const netShippingCost = actualShipping - shippingCharged
   const paymentCost = paymentCostPerOrder * totalOrders
-  const contributionMargin = revenueExclBtw - cogs - netShippingCost - paymentCost - adSpend
+  const contributionMargin = revenueExclBtw - cogs - netShippingCost - packagingCost - paymentCost - adSpend
   const contributionMarginPerOrder = totalOrders > 0 ? contributionMargin / totalOrders : 0
   const contributionMarginPerAdEuro = adSpend > 0 ? contributionMargin / adSpend : null
 

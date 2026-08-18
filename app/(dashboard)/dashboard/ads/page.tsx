@@ -14,7 +14,7 @@ export default async function AdsPage() {
   const [dailyRate, btwRate, paymentCostPerOrder] = await Promise.all([
     getSetting('ads_daily_rate', 0),
     getSetting('btw_rate', 21),
-    getSetting('payment_cost_per_order', 0.29),
+    getSetting('payment_cost_per_order', 0.50),
   ])
 
   return (
@@ -65,11 +65,11 @@ export default async function AdsPage() {
             <SettingInput
               settingKey="payment_cost_per_order"
               label="Betaalkosten per order"
-              description="Vaste transactiekosten per bestelling (bijv. iDEAL via Mollie €0,29). Wordt vermenigvuldigd met het aantal orders."
+              description="Vaste transactiekosten per bestelling via Mollie (gemiddeld €0,50 excl. BTW). Wordt vermenigvuldigd met het aantal orders."
               current={paymentCostPerOrder}
               prefix="€"
               step="0.01"
-              placeholder="0.29"
+              placeholder="0.50"
             />
           </div>
         </div>

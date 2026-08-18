@@ -57,8 +57,28 @@ export default async function DashboardPage({
         <PeriodPicker active={period} />
       </div>
 
-      {/* KPI rij 1: omzet + Google Ads */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+      {/* Sectie: Omzet & orders */}
+      <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">Omzet &amp; orders</p>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="bg-white rounded-xl border border-slate-200 p-5">
+          <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-2">Webshopomzet excl. BTW</p>
+          <p className="text-2xl font-bold text-slate-900">{formatCurrency(stats!.revenueExclBtw)}</p>
+          <p className="text-xs text-slate-400 mt-1">Incl. BTW {formatCurrency(stats!.totalRevenue)}</p>
+        </div>
+        <StatCard label="Orders" value={String(stats!.totalOrders)} sub="t.o.v. vorige periode" trend={stats!.ordersTrend} />
+        <StatCard label="Gem. orderwaarde" value={formatCurrency(stats!.avgOrderValue)} trend={stats!.avgOrderTrend} />
+        <div className="bg-white rounded-xl border border-slate-200 p-5">
+          <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-2">Productmarge %</p>
+          <p className={`text-2xl font-bold ${stats!.productMarginPct >= 40 ? 'text-green-700' : stats!.productMarginPct >= 20 ? 'text-slate-900' : 'text-red-700'}`}>
+            {stats!.productMarginPct.toFixed(1)}%
+          </p>
+          <p className="text-xs text-slate-400 mt-1">(Omzet − inkoop) ÷ omzet excl. BTW</p>
+        </div>
+      </div>
+
+      {/* Sectie: Google Ads */}
+      <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">Google Ads</p>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <div className="bg-orange-50 rounded-xl border border-orange-200 p-5">
           <p className="text-xs text-orange-600 uppercase tracking-wide font-medium mb-2">Google Ads spend</p>
           <p className="text-2xl font-bold text-orange-700">{formatCurrency(stats!.adSpend)}</p>
@@ -66,26 +86,6 @@ export default async function DashboardPage({
             {stats!.adSpend > 0 ? 'Periode totaal' : <a href="/dashboard/ads" className="underline">Dagbudget instellen →</a>}
           </p>
         </div>
-        <div className="bg-white rounded-xl border border-slate-200 p-5">
-          <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-2">Webshopomzet excl. BTW</p>
-          <p className="text-2xl font-bold text-slate-900">{formatCurrency(stats!.revenueExclBtw)}</p>
-          <p className="text-xs text-slate-400 mt-1">Incl. BTW {formatCurrency(stats!.totalRevenue)}</p>
-        </div>
-        <StatCard
-          label="Orders"
-          value={String(stats!.totalOrders)}
-          sub="t.o.v. vorige periode"
-          trend={stats!.ordersTrend}
-        />
-        <StatCard
-          label="Gem. orderwaarde"
-          value={formatCurrency(stats!.avgOrderValue)}
-          trend={stats!.avgOrderTrend}
-        />
-      </div>
-
-      {/* KPI rij 2: Google efficiency + productmarge + kosten */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
         <div className="bg-white rounded-xl border border-slate-200 p-5">
           <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-2">Google kosten per order</p>
           <p className="text-2xl font-bold text-slate-900">{formatCurrency(stats!.googleCostPerOrder)}</p>
@@ -95,9 +95,7 @@ export default async function DashboardPage({
           <div className={`rounded-xl border p-5 ${stats!.roas >= 4 ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
             <p className={`text-xs uppercase tracking-wide font-medium mb-2 ${stats!.roas >= 4 ? 'text-green-600' : 'text-red-600'}`}>ROAS</p>
             <p className={`text-2xl font-bold ${stats!.roas >= 4 ? 'text-green-700' : 'text-red-700'}`}>{stats!.roas.toFixed(1)}×</p>
-            <p className={`text-xs mt-1 ${stats!.roas >= 4 ? 'text-green-500' : 'text-red-400'}`}>
-              {stats!.roas >= 4 ? 'Boven doel (4×)' : 'Onder doel (4×)'}
-            </p>
+            <p className={`text-xs mt-1 ${stats!.roas >= 4 ? 'text-green-500' : 'text-red-400'}`}>{stats!.roas >= 4 ? 'Boven doel (4×)' : 'Onder doel (4×)'}</p>
           </div>
         ) : (
           <div className="bg-white rounded-xl border border-slate-200 p-5">
@@ -106,54 +104,11 @@ export default async function DashboardPage({
             <p className="text-xs text-slate-400 mt-1"><a href="/dashboard/ads" className="underline">Dagbudget instellen →</a></p>
           </div>
         )}
-        <div className="bg-white rounded-xl border border-slate-200 p-5">
-          <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-2">Productmarge %</p>
-          <p className={`text-2xl font-bold ${stats!.productMarginPct >= 40 ? 'text-green-700' : stats!.productMarginPct >= 20 ? 'text-slate-900' : 'text-red-700'}`}>
-            {stats!.productMarginPct.toFixed(1)}%
-          </p>
-          <p className="text-xs text-slate-400 mt-1">(Omzet − inkoop) ÷ omzet</p>
-        </div>
-        <div className="bg-white rounded-xl border border-slate-200 p-5">
-          <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-2">Netto verzendkosten</p>
-          <p className="text-2xl font-bold text-slate-900">{formatCurrency(stats!.netShippingCost)}</p>
-          <p className="text-xs text-slate-400 mt-1">
-            Kosten {formatCurrency(stats!.actualShipping + stats!.packagingCost)} − ontvangen {formatCurrency(stats!.shippingCharged)}
-          </p>
-        </div>
-      </div>
-
-      {/* KPI rij 3: betaalkosten + contributiemarge */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-        <div className="bg-white rounded-xl border border-slate-200 p-5">
-          <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-2">Betaalkosten</p>
-          <p className="text-2xl font-bold text-slate-900">{formatCurrency(stats!.paymentCost)}</p>
-          <p className="text-xs text-slate-400 mt-1">{formatCurrency(stats!.paymentCost / Math.max(stats!.totalOrders, 1))} per order · <a href="/dashboard/ads" className="underline">instellen →</a></p>
-        </div>
-        <div className={`rounded-xl border p-5 ${stats!.contributionMargin >= 0 ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
-          <p className={`text-xs uppercase tracking-wide font-medium mb-2 ${stats!.contributionMargin >= 0 ? 'text-green-600' : 'text-red-600'}`}>Contributiemarge</p>
-          <p className={`text-2xl font-bold ${stats!.contributionMargin >= 0 ? 'text-green-700' : 'text-red-700'}`}>
-            {formatCurrency(stats!.contributionMargin)}
-          </p>
-          <p className={`text-xs mt-1 ${stats!.contributionMargin >= 0 ? 'text-green-500' : 'text-red-400'}`}>
-            Omzet − inkoop − verzending − betaling − ads
-          </p>
-        </div>
-        <div className="bg-white rounded-xl border border-slate-200 p-5">
-          <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-2">Contributiemarge per order</p>
-          <p className={`text-2xl font-bold ${stats!.contributionMarginPerOrder >= 0 ? 'text-slate-900' : 'text-red-700'}`}>
-            {formatCurrency(stats!.contributionMarginPerOrder)}
-          </p>
-          <p className="text-xs text-slate-400 mt-1">Per bestelling</p>
-        </div>
         {stats!.contributionMarginPerAdEuro !== null ? (
           <div className={`rounded-xl border p-5 ${stats!.contributionMarginPerAdEuro >= 1 ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
             <p className={`text-xs uppercase tracking-wide font-medium mb-2 ${stats!.contributionMarginPerAdEuro >= 1 ? 'text-green-600' : 'text-red-600'}`}>CM / Google-euro</p>
-            <p className={`text-2xl font-bold ${stats!.contributionMarginPerAdEuro >= 1 ? 'text-green-700' : 'text-red-700'}`}>
-              {stats!.contributionMarginPerAdEuro.toFixed(2)}×
-            </p>
-            <p className={`text-xs mt-1 ${stats!.contributionMarginPerAdEuro >= 1 ? 'text-green-500' : 'text-red-400'}`}>
-              {stats!.contributionMarginPerAdEuro >= 1 ? 'Positief rendement' : 'Negatief rendement'}
-            </p>
+            <p className={`text-2xl font-bold ${stats!.contributionMarginPerAdEuro >= 1 ? 'text-green-700' : 'text-red-700'}`}>{stats!.contributionMarginPerAdEuro.toFixed(2)}×</p>
+            <p className={`text-xs mt-1 ${stats!.contributionMarginPerAdEuro >= 1 ? 'text-green-500' : 'text-red-400'}`}>{stats!.contributionMarginPerAdEuro >= 1 ? 'Positief rendement' : 'Negatief rendement'}</p>
           </div>
         ) : (
           <div className="bg-white rounded-xl border border-slate-200 p-5">
@@ -162,6 +117,47 @@ export default async function DashboardPage({
             <p className="text-xs text-slate-400 mt-1"><a href="/dashboard/ads" className="underline">Dagbudget instellen →</a></p>
           </div>
         )}
+      </div>
+
+      {/* Sectie: Kosten */}
+      <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">Kosten</p>
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+        <div className="bg-white rounded-xl border border-slate-200 p-5">
+          <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-2">Netto verzendkosten</p>
+          <p className="text-2xl font-bold text-slate-900">{formatCurrency(stats!.netShippingCost)}</p>
+          <p className="text-xs text-slate-400 mt-1">
+            Werkelijk {formatCurrency(stats!.actualShipping)} − ontvangen {formatCurrency(stats!.shippingCharged)}
+          </p>
+        </div>
+        <div className="bg-white rounded-xl border border-slate-200 p-5">
+          <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-2">Verpakkingskosten</p>
+          <p className="text-2xl font-bold text-slate-900">{formatCurrency(stats!.packagingCost)}</p>
+          <p className="text-xs text-slate-400 mt-1">
+            {formatCurrency(stats!.packagingCost / Math.max(stats!.totalOrders, 1))} per order
+          </p>
+        </div>
+        <div className="bg-white rounded-xl border border-slate-200 p-5">
+          <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-2">Betaalkosten</p>
+          <p className="text-2xl font-bold text-slate-900">{formatCurrency(stats!.paymentCost)}</p>
+          <p className="text-xs text-slate-400 mt-1">
+            {formatCurrency(stats!.paymentCost / Math.max(stats!.totalOrders, 1))} per order · <a href="/dashboard/ads" className="underline">instellen →</a>
+          </p>
+        </div>
+      </div>
+
+      {/* Sectie: Contributiemarge */}
+      <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">Contributiemarge</p>
+      <div className="grid grid-cols-2 gap-4 mb-6">
+        <div className={`rounded-xl border p-5 ${stats!.contributionMargin >= 0 ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+          <p className={`text-xs uppercase tracking-wide font-medium mb-2 ${stats!.contributionMargin >= 0 ? 'text-green-600' : 'text-red-600'}`}>Contributiemarge</p>
+          <p className={`text-2xl font-bold ${stats!.contributionMargin >= 0 ? 'text-green-700' : 'text-red-700'}`}>{formatCurrency(stats!.contributionMargin)}</p>
+          <p className={`text-xs mt-1 ${stats!.contributionMargin >= 0 ? 'text-green-500' : 'text-red-400'}`}>Omzet excl. BTW − inkoop − verzending − verpakking − betaling − ads</p>
+        </div>
+        <div className="bg-white rounded-xl border border-slate-200 p-5">
+          <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-2">Contributiemarge per order</p>
+          <p className={`text-2xl font-bold ${stats!.contributionMarginPerOrder >= 0 ? 'text-slate-900' : 'text-red-700'}`}>{formatCurrency(stats!.contributionMarginPerOrder)}</p>
+          <p className="text-xs text-slate-400 mt-1">Per bestelling</p>
+        </div>
       </div>
 
       {/* KPI row 3: new vs returning customers */}
