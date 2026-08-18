@@ -123,10 +123,10 @@ export default async function DashboardPage({
       <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">Kosten</p>
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
         <div className="bg-white rounded-xl border border-slate-200 p-5">
-          <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-2">Netto verzendkosten</p>
+          <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-2">Verzendkosten (vervoerder)</p>
           <p className="text-2xl font-bold text-slate-900">{formatCurrency(stats!.netShippingCost)}</p>
           <p className="text-xs text-slate-400 mt-1">
-            Werkelijk {formatCurrency(stats!.actualShipping)} − ontvangen {formatCurrency(stats!.shippingCharged)}
+            Klanten betaalden {formatCurrency(stats!.shippingCharged)} (zit in omzet)
           </p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-5">
