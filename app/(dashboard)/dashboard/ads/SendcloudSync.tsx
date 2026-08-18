@@ -38,7 +38,10 @@ export default function SendcloudSync({ publicKey, secretKey }: Props) {
       setSyncState('done')
       setSyncMsg(`${data.savedMonths} maanden opgeslagen (${data.totalFetched} facturen opgehaald)`)
       setSyncDetail(data.months ?? [])
-      setSyncDebug(`Overgeslagen: ${data.skippedNoAmount ?? 0} geen bedrag, ${data.skippedNoDate ?? 0} geen datum · Velden: ${(data.debugFields ?? []).join(', ')}`)
+      setSyncDebug(
+        `Overgeslagen: ${data.skippedNoAmount ?? 0} geen bedrag, ${data.skippedNoDate ?? 0} geen datum · Velden: ${(data.debugFields ?? []).join(', ')}` +
+        (data.noDateSamples?.length ? `\nSample zonder datum: ${JSON.stringify(data.noDateSamples)}` : '')
+      )
       if (data.savedMonths > 0) router.refresh()
     } else {
       setSyncState('error')

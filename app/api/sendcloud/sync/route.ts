@@ -50,11 +50,18 @@ export async function POST() {
     const costByMonth = new Map<string, number>()
     let skippedNoDate = 0
     let skippedNoAmount = 0
+    const noDateSamples: unknown[] = []
 
     for (const inv of invoices) {
-      if (!inv.date) { skippedNoDate++; continue }
-      const d = new Date(inv.date)
-      if (isNaN(d.getTime())) { skippedNoDate++; continue }
+      if (!inv.date) {
+        if (noDateSamples.length < 5) noDateSamples.push({ id: inv.id, ref: inv.ref, type: inv.type, date: inv.date, price_excl: inv.price_excl })
+        skippedNoDate++; continue
+      }
+      const d = new Date(inv.date as string)
+      if (isNaN(d.getTime())) {
+        if (noDateSamples.length < 5) noDateSamples.push({ id: inv.id, ref: inv.ref, type: inv.type, date: inv.date, price_excl: inv.price_excl, parseError: 'invalid date' })
+        skippedNoDate++; continue
+      }
 
       // Prefer excl. BTW; fall back to incl. BTW
       const raw = inv.price_excl ?? inv.price_incl
@@ -93,6 +100,7 @@ export async function POST() {
       months: monthResults,
       debugFields: sampleFields,
       debugSample: sampleInvoice,
+      noDateSamples,
     })
   } catch (err) {
     await prisma.syncLog.create({
