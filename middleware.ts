@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 const ALLOWED_IPS = new Set(['77.173.211.65', '2a02:a465:c59c:1:5517:dc3:6e06:8920'])
+// IPv6 prefix match for home connections (ISP prefix stays stable even if suffix rotates)
+const ALLOWED_IPV6_PREFIXES = ['2a02:a465:c59c:']
 const COOKIE_NAME = 'auth_token'
 
 // Paths that are fully public — no IP check, no auth
@@ -49,7 +51,8 @@ export async function middleware(req: NextRequest) {
 
   // IP check — block anything not from the allowed IP
   const ip = clientIp(req)
-  if (!ALLOWED_IPS.has(ip)) {
+  const ipAllowed = ALLOWED_IPS.has(ip) || ALLOWED_IPV6_PREFIXES.some(p => ip.startsWith(p))
+  if (!ipAllowed) {
     const html = blockedHtml.replace('vanaf jouw IP-adres.', `vanaf jouw IP-adres (<code>${ip}</code>).`)
     return new Response(html, {
       status: 403,
