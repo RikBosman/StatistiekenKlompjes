@@ -17,6 +17,19 @@ interface SendcloudInvoicesResponse {
   invoices: SendcloudInvoice[]
 }
 
+function parseInvoiceDate(raw: string): Date | null {
+  // Try standard ISO parsing first
+  let d = new Date(raw)
+  if (!isNaN(d.getTime())) return d
+  // Dutch format: DD-MM-YYYY HH:MM:SS
+  const m = raw.match(/^(\d{2})-(\d{2})-(\d{4})/)
+  if (m) {
+    d = new Date(`${m[3]}-${m[2]}-${m[1]}`)
+    if (!isNaN(d.getTime())) return d
+  }
+  return null
+}
+
 async function getSetting(key: string): Promise<string | null> {
   const s = await prisma.settings.findUnique({ where: { key } })
   return s?.value ?? null
@@ -61,8 +74,8 @@ export async function POST() {
         if (noDateSamples.length < 5) noDateSamples.push({ id: inv.id, ref: inv.ref, type: inv.type, date: inv.date, price_excl: inv.price_excl })
         skippedNoDate++; continue
       }
-      const d = new Date(inv.date as string)
-      if (isNaN(d.getTime())) {
+      const d = parseInvoiceDate(inv.date as string)
+      if (!d) {
         if (noDateSamples.length < 5) noDateSamples.push({ id: inv.id, ref: inv.ref, type: inv.type, date: inv.date, price_excl: inv.price_excl, parseError: 'invalid date' })
         skippedNoDate++; continue
       }
@@ -73,7 +86,7 @@ export async function POST() {
       const amount = parseFloat(String(raw))
       if (isNaN(amount) || amount <= 0) { skippedNoAmount++; continue }
 
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+      const key = `${d!.getFullYear()}-${String(d!.getMonth() + 1).padStart(2, '0')}`
       // Skip future months
       if (key > currentYM) { skippedFuture++; continue }
       costByMonth.set(key, (costByMonth.get(key) ?? 0) + amount)
