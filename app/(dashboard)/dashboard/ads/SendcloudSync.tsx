@@ -15,6 +15,8 @@ export default function SendcloudSync({ publicKey, secretKey }: Props) {
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'done' | 'error'>('idle')
   const [syncState, setSyncState] = useState<'idle' | 'syncing' | 'done' | 'error'>('idle')
   const [syncMsg, setSyncMsg] = useState('')
+  const [backfillState, setBackfillState] = useState<'idle' | 'running' | 'done' | 'error'>('idle')
+  const [backfillMsg, setBackfillMsg] = useState('')
 
   async function saveKeys() {
     setSaveState('saving')
@@ -24,6 +26,20 @@ export default function SendcloudSync({ publicKey, secretKey }: Props) {
     ])
     const [d1, d2] = await Promise.all([r1.json(), r2.json()])
     setSaveState(d1.ok && d2.ok ? 'done' : 'error')
+  }
+
+  async function runBackfill() {
+    setBackfillState('running')
+    setBackfillMsg('')
+    const res = await fetch('/api/sendcloud/backfill-order-numbers', { method: 'POST' })
+    const data = await res.json()
+    if (data.ok) {
+      setBackfillState('done')
+      setBackfillMsg(`${data.updated} ordernummers bijgewerkt (${data.totalFetched} orders opgehaald)`)
+    } else {
+      setBackfillState('error')
+      setBackfillMsg(data.error ?? 'Onbekende fout')
+    }
   }
 
   async function runSync() {
@@ -80,6 +96,13 @@ export default function SendcloudSync({ publicKey, secretKey }: Props) {
           {saveState === 'saving' ? 'Opslaan…' : 'Sleutels opslaan'}
         </button>
         <button
+          onClick={runBackfill}
+          disabled={backfillState === 'running'}
+          className="px-5 py-2 bg-slate-600 text-white text-sm rounded-lg hover:bg-slate-700 disabled:opacity-50 transition-colors font-medium"
+        >
+          {backfillState === 'running' ? 'Ordernummers laden…' : 'Ordernummers laden (1×)'}
+        </button>
+        <button
           onClick={runSync}
           disabled={syncState === 'syncing' || !pk || !sk}
           className="px-5 py-2 bg-slate-800 text-white text-sm rounded-lg hover:bg-slate-900 disabled:opacity-50 transition-colors font-medium"
@@ -90,6 +113,8 @@ export default function SendcloudSync({ publicKey, secretKey }: Props) {
         {saveState === 'error' && <span className="text-sm text-red-600">Opslaan mislukt</span>}
       </div>
 
+      {backfillState === 'done' && <p className="text-green-700 text-sm mt-3 font-medium">✓ {backfillMsg} — nu kun je zendingen synchroniseren.</p>}
+      {backfillState === 'error' && <p className="text-red-600 text-sm mt-3">{backfillMsg}</p>}
       {syncState === 'done' && <p className="text-green-700 text-sm mt-3 font-medium">✓ {syncMsg}</p>}
       {syncState === 'error' && <p className="text-red-600 text-sm mt-3">{syncMsg}</p>}
     </div>
