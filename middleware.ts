@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-const ALLOWED_IP = '77.173.211.65'
+const ALLOWED_IPS = new Set(['77.173.211.65', '2a02:a465:c59c:1:5517:dc3:6e06:8920'])
 const COOKIE_NAME = 'auth_token'
 
 // Paths that are fully public — no IP check, no auth
@@ -49,7 +49,7 @@ export async function middleware(req: NextRequest) {
 
   // IP check — block anything not from the allowed IP
   const ip = clientIp(req)
-  if (ip !== ALLOWED_IP) {
+  if (!ALLOWED_IPS.has(ip)) {
     const html = blockedHtml.replace('vanaf jouw IP-adres.', `vanaf jouw IP-adres (<code>${ip}</code>).`)
     return new Response(html, {
       status: 403,
