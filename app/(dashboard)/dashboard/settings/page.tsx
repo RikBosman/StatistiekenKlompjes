@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/db'
 import ResyncButton from './ResyncButton'
+import SyncOrdersButton from './SyncOrdersButton'
 
 export const revalidate = 0
 
@@ -51,6 +52,16 @@ export default async function SettingsPage() {
           Synct bestellingen vanaf 1 januari 2026. Dit kan enkele minuten duren.
         </p>
         <ResyncButton />
+      </div>
+
+      {/* Order sync */}
+      <div className="bg-white rounded-lg border border-slate-200 p-6 mb-6">
+        <h3 className="font-medium text-slate-700 mb-2">Bestellingen synchroniseren</h3>
+        <p className="text-sm text-slate-500 mb-1">
+          Nieuwe bestellingen in WooCommerce worden niet automatisch ingeladen. Klik op de knop
+          om de laatste bestellingen nu op te halen (incrementeel — pakt alles op vanaf de meest recente bestelling in de database).
+        </p>
+        <SyncOrdersButton />
       </div>
 
       {/* Cron info */}
