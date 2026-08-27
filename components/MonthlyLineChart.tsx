@@ -56,7 +56,7 @@ function fmtLabel(key: string, view: TimeView): string {
 }
 
 function buildRows(data: MarginData[], view: TimeView): ChartRow[] {
-  const source = view === 'month' ? data.slice(-12) : data
+  const source = view === 'month' ? data.slice(-25) : data
   const groups = new Map<string, MarginData[]>()
   for (const d of source) {
     const k = groupKey(d.month, view)
