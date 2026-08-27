@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-const ALLOWED_IPS = new Set(['77.173.211.65', '2a02:a465:c59c:1:5517:dc3:6e06:8920', '86.81.13.92'])
+const ALLOWED_IPS = new Set(['77.173.211.65', '2a02:a465:c59c:1:5517:dc3:6e06:8920', '86.81.13.92', '2a02:a44b:e61b:0:ccdb:bd04:861e:20fd'])
 // IPv6 prefix match for home connections (ISP prefix stays stable even if suffix rotates)
 const ALLOWED_IPV6_PREFIXES = ['2a02:a465:c59c:']
 const COOKIE_NAME = 'auth_token'
