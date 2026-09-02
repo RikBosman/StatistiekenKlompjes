@@ -51,7 +51,6 @@ export default async function EmailPage() {
       by: ['customerId'],
       where: { customerId: { not: null }, status: { notIn: ['cancelled', 'refunded'] } },
       _count: { id: true },
-      having: { id: { _count: { gte: 2 } } },
     }),
     prisma.customer.count({
       where: { orders: { some: { status: { notIn: ['cancelled', 'refunded'] }, lineItems: { some: { name: { contains: 'emmer' } } } } } },
@@ -86,7 +85,7 @@ export default async function EmailPage() {
     }),
   ])
 
-  const repeatBuyerCount = repeatGroups.length
+  const repeatBuyerCount = repeatGroups.filter(g => g._count.id >= 2).length
 
   // Top customers: all with any valid order revenue
   const topCustomerCount = await prisma.customer.count({
