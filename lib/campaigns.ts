@@ -75,7 +75,7 @@ export async function sendCampaign(campaignId: number): Promise<{ sent: number; 
     data: {
       status: failed === 0 ? 'sent' : 'failed',
       totalSent: sent,
-      sentAt: new Date(),
+      sentAt: campaign.sentAt ?? new Date(), // preserve original send date on retry
     },
   })
 

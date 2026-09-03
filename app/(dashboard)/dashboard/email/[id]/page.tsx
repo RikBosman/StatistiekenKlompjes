@@ -24,14 +24,16 @@ export default async function CampaignDetailPage({ params }: { params: Promise<{
   const failedCount = campaign.recipients.filter((r) => r.status === 'failed').length
   const pendingCount = campaign.recipients.filter((r) => r.status === 'pending').length
 
-  // Revenue: all orders ever placed by campaign recipients
+  // Revenue attribution: orders placed by recipients within 30 days after first send
   let attributedRevenue = 0
   let attributedOrders = 0
-  if (campaign.recipients.length > 0) {
+  if (campaign.sentAt && campaign.recipients.length > 0) {
     const emails = campaign.recipients.map((r) => r.email)
+    const windowEnd = new Date(campaign.sentAt.getTime() + 30 * 24 * 60 * 60 * 1000)
     const agg = await prisma.order.aggregate({
       where: {
         customerEmail: { in: emails },
+        date: { gte: campaign.sentAt, lte: windowEnd },
         status: { notIn: ['cancelled', 'refunded'] },
       },
       _sum: { total: true },
@@ -94,7 +96,7 @@ export default async function CampaignDetailPage({ params }: { params: Promise<{
           )}
         </div>
         <div className="bg-emerald-50 rounded-xl border border-emerald-200 p-5">
-          <p className="text-xs text-emerald-600 uppercase tracking-wide font-medium mb-2">Omzet ontvangers</p>
+          <p className="text-xs text-emerald-600 uppercase tracking-wide font-medium mb-2">Omzet (30d na verzending)</p>
           <p className="text-2xl font-bold text-emerald-700">{formatCurrency(attributedRevenue)}</p>
           {attributedOrders > 0 && (
             <p className="text-xs text-emerald-500 mt-1">{attributedOrders} bestellingen</p>
@@ -115,11 +117,11 @@ export default async function CampaignDetailPage({ params }: { params: Promise<{
         </div>
       )}
 
-      {campaign.recipients.length > 0 && (
+      {campaign.sentAt && (
         <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 mb-6 text-sm text-emerald-800">
-          <strong>Omzet ontvangers:</strong> alle bestellingen ooit geplaatst door de {campaign.recipients.length} ontvangers van deze campagne.
+          <strong>Omzetattributie:</strong> bestellingen van ontvangers binnen 30 dagen na verzending ({formatDate(campaign.sentAt)}).
           {attributedRevenue === 0
-            ? ' Nog geen bestellingen gevonden.'
+            ? ' Nog geen bestellingen gedetecteerd.'
             : ` ${attributedOrders} bestelling${attributedOrders !== 1 ? 'en' : ''} — ${formatCurrency(attributedRevenue)} totaal.`}
         </div>
       )}
