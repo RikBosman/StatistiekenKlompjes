@@ -92,26 +92,20 @@ export default async function EmailPage() {
     where: { orders: { some: { status: { notIn: ['cancelled', 'refunded'] }, total: { gt: 0 } } } },
   })
 
-  // Klompen logo/tekst: fetch items with 'klompen', filter logo/tekst in JS
+  // Klompen logo/tekst: join through relation to avoid large IN clause (P2029)
   const klompenItems = await prisma.orderItem.findMany({
-    where: { name: { contains: 'klompen' } },
-    select: { name: true, orderId: true },
+    where: {
+      name: { contains: 'klompen' },
+      order: { status: { notIn: ['cancelled', 'refunded'] } },
+    },
+    select: { name: true, order: { select: { customerId: true } } },
   })
-  const klompenOrderIds = Array.from(
-    new Set(
-      klompenItems
-        .filter((i) => i.name.toLowerCase().includes('logo') || i.name.toLowerCase().includes('tekst'))
-        .map((i) => i.orderId)
-    )
-  )
-  let klompenLogoCount = 0
-  if (klompenOrderIds.length > 0) {
-    const klompenOrders = await prisma.order.findMany({
-      where: { id: { in: klompenOrderIds }, status: { notIn: ['cancelled', 'refunded'] } },
-      select: { customerId: true },
-    })
-    klompenLogoCount = new Set(klompenOrders.map((o) => o.customerId).filter(Boolean)).size
-  }
+  const klompenLogoCount = new Set(
+    klompenItems
+      .filter((i) => i.name.toLowerCase().includes('logo') || i.name.toLowerCase().includes('tekst'))
+      .map((i) => i.order.customerId)
+      .filter(Boolean)
+  ).size
 
   const productSegments = [
     {
