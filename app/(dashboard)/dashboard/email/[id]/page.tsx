@@ -24,15 +24,21 @@ export default async function CampaignDetailPage({ params }: { params: Promise<{
   const failedCount = campaign.recipients.filter((r) => r.status === 'failed').length
   const pendingCount = campaign.recipients.filter((r) => r.status === 'pending').length
 
-  // Revenue attribution: orders placed by recipients on or after send date
+  // Revenue attribution: orders placed by recipients on or after the first actual send date
+  // Use earliest recipient sentAt (not campaign.sentAt which can be overwritten by retry)
   let attributedRevenue = 0
   let attributedOrders = 0
-  if (campaign.sentAt && campaign.recipients.length > 0) {
+  const firstSentRecipient = campaign.recipients
+    .map((r) => r.sentAt)
+    .filter((d): d is Date => d !== null)
+    .sort((a, b) => a.getTime() - b.getTime())[0]
+  const attributionStart = firstSentRecipient ?? campaign.sentAt
+  if (attributionStart && campaign.recipients.length > 0) {
     const emails = campaign.recipients.map((r) => r.email)
     const agg = await prisma.order.aggregate({
       where: {
         customerEmail: { in: emails },
-        date: { gte: campaign.sentAt },
+        date: { gte: attributionStart },
         status: { notIn: ['cancelled', 'refunded'] },
       },
       _sum: { total: true },
@@ -116,9 +122,9 @@ export default async function CampaignDetailPage({ params }: { params: Promise<{
         </div>
       )}
 
-      {campaign.sentAt && (
+      {attributionStart && (
         <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 mb-6 text-sm text-emerald-800">
-          <strong>Omzetattributie:</strong> bestellingen van ontvangers na verzending op {formatDate(campaign.sentAt)}.
+          <strong>Omzetattributie:</strong> bestellingen van ontvangers na eerste verzending op {formatDate(attributionStart!)}.
           {attributedRevenue === 0
             ? ' Nog geen bestellingen gedetecteerd.'
             : ` ${attributedOrders} bestelling${attributedOrders !== 1 ? 'en' : ''} — ${formatCurrency(attributedRevenue)} totaal.`}
