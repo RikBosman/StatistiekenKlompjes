@@ -2,9 +2,10 @@ module.exports = {
   apps: [
     {
       name: 'klompjes-dashboard',
-      script: 'node_modules/.bin/next',
+      script: '/home/statistieken/public_html/node_modules/.bin/next',
       args: 'start',
-      cwd: './',
+      cwd: '/home/statistieken/public_html',
+      node_args: '--max-old-space-size=256',
       instances: 1,
       autorestart: true,
       watch: false,
