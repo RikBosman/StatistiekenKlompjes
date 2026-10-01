@@ -367,8 +367,10 @@ export async function getOverviewStats(period = '30d'): Promise<OverviewStats> {
   const [orders, ordersPrev, totalCustomers, logoTekstCustomers, adsDailyRate, btwRate, paymentCostPerOrder] = await Promise.all([
     prisma.order.findMany({
       where: { date: { gte: since, lte: until }, status: { notIn: ['cancelled', 'refunded'] } },
-      include: { lineItems: true },
-      // sendcloudCost is selected via include (all scalar fields are included by default)
+      select: {
+        total: true, shippingTotal: true, shippingMethod: true, sendcloudCost: true, customerId: true,
+        lineItems: { select: { productId: true, sku: true, quantity: true } },
+      },
     }),
     prisma.order.findMany({
       where: { date: { gte: prevSince, lte: prevUntil }, status: { notIn: ['cancelled', 'refunded'] } },
