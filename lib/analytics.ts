@@ -189,7 +189,7 @@ export async function getProductPerformance(period = '30d'): Promise<ProductPerf
           status: { notIn: ['cancelled', 'refunded'] },
         },
       },
-      include: { order: { select: { date: true } } },
+      select: { id: true, productId: true, sku: true, quantity: true, total: true, order: { select: { date: true } } },
     }),
   ])
 
@@ -609,45 +609,63 @@ export interface MarginData {
 export async function getMarginData(period = '6m'): Promise<MarginData[]> {
   const { since, until, months } = periodToRange(period)
   const now = new Date()
-
-  const [{ byId: cogsById, bySku: cogsBySku }, adsDailyRate] = await Promise.all([
-    buildCogsLookup(),
-    getAdsDailyRate(),
-  ])
-
-  const result: MarginData[] = []
-
-  // For a specific month period, show that one month. Otherwise show rolling months up to `until`.
   const isSpecificMonth = /^\d{4}-\d{2}$/.test(period)
   const rangeEnd = isSpecificMonth ? until : now
 
+  // Collect month ranges upfront
+  const monthRanges: { mk: string; start: Date; end: Date; year: number; month: number }[] = []
   for (let i = months - 1; i >= 0; i--) {
     const monthStart = startOfMonth(subMonths(rangeEnd, i))
     const monthEnd = endOfMonth(subMonths(rangeEnd, i))
     if (monthEnd < since) continue
-
-    const mk = `${monthStart.getFullYear()}-${String(monthStart.getMonth() + 1).padStart(2, '0')}`
     const effectiveStart = monthStart > since ? monthStart : since
     const effectiveEnd = monthEnd < until ? monthEnd : until
+    const mk = `${monthStart.getFullYear()}-${String(monthStart.getMonth() + 1).padStart(2, '0')}`
+    monthRanges.push({ mk, start: effectiveStart, end: effectiveEnd, year: monthStart.getFullYear(), month: monthStart.getMonth() + 1 })
+  }
 
-    const orders = await prisma.order.findMany({
-      where: {
-        date: { gte: effectiveStart, lte: effectiveEnd },
-        status: { notIn: ['cancelled', 'refunded'] },
+  const allPairs = monthRanges.map(({ year, month }) => ({ year, month }))
+
+  // Fetch everything in one parallel batch — no per-month queries
+  const [{ byId: cogsById, bySku: cogsBySku }, adsDailyRate, paymentCostPerOrder, btwRate, allOrders, allAdsInvoices, allShippingInvoices, allAdSpendRows] = await Promise.all([
+    buildCogsLookup(),
+    getAdsDailyRate(),
+    getSetting('payment_cost_per_order', 0.50),
+    getSetting('btw_rate', 21),
+    prisma.order.findMany({
+      where: { date: { gte: since, lte: until }, status: { notIn: ['cancelled', 'refunded'] } },
+      select: {
+        date: true, total: true, shippingTotal: true, shippingMethod: true, sendcloudCost: true,
+        lineItems: { select: { productId: true, sku: true, quantity: true } },
       },
-      include: { lineItems: true },
-    })
+    }),
+    prisma.adsInvoice.findMany({ where: { OR: allPairs } }),
+    prisma.shippingInvoice.findMany({ where: { OR: allPairs } }),
+    prisma.adSpend.findMany({ where: { date: { gte: since, lte: until } }, select: { date: true, spend: true } }),
+  ])
+
+  return monthRanges.map(({ mk, start, end, year, month }) => {
+    const orders = allOrders.filter(o => o.date >= start && o.date <= end)
+
+    const monthAdsInvoices = allAdsInvoices.filter(inv => inv.year === year && inv.month === month)
+    const monthAdSpendRows = allAdSpendRows.filter(r => r.date >= start && r.date <= end)
+    let adSpend: number
+    if (monthAdsInvoices.length > 0) {
+      adSpend = monthAdsInvoices.reduce((s, r) => s + r.amountExclBtw, 0)
+    } else if (monthAdSpendRows.length > 0) {
+      adSpend = monthAdSpendRows.reduce((s, r) => s + r.spend, 0)
+    } else {
+      adSpend = adsDailyRate * Math.max(0, (end.getTime() - start.getTime()) / 86_400_000)
+    }
+
+    const monthShippingInvoices = allShippingInvoices.filter(inv => inv.year === year && inv.month === month)
+    const invoiceShipping = monthShippingInvoices.length > 0
+      ? monthShippingInvoices.reduce((s, inv) => s + inv.amountExclBtw, 0)
+      : null
 
     const revenue = orders.reduce((s, o) => s + o.total, 0)
     const shippingCharged = orders.reduce((s, o) => s + o.shippingTotal, 0)
-    const [{ spend: adSpend }, invoiceShipping] = await Promise.all([
-      getActualAdSpend(effectiveStart, effectiveEnd, adsDailyRate),
-      getInvoiceShipping(effectiveStart, effectiveEnd),
-    ])
-
-    let cogs = 0
-    let estimatedShipping = 0
-    let packagingCost = 0
+    let cogs = 0, estimatedShipping = 0, packagingCost = 0
     for (const order of orders) {
       estimatedShipping += order.sendcloudCost ?? calcActualShipping(order.shippingMethod)
       packagingCost += calcPackagingCost(order.shippingMethod)
@@ -656,8 +674,6 @@ export async function getMarginData(period = '6m'): Promise<MarginData[]> {
       }
     }
 
-    const paymentCostPerOrder = await getSetting('payment_cost_per_order', 0.50)
-    const btwRate = await getSetting('btw_rate', 21)
     const totalOrders = orders.length
     const actualShipping = invoiceShipping ?? estimatedShipping
     const paymentCost = paymentCostPerOrder * totalOrders
@@ -665,28 +681,14 @@ export async function getMarginData(period = '6m'): Promise<MarginData[]> {
     const contributionMargin = revenueExclBtw - cogs - actualShipping - packagingCost - paymentCost - adSpend
     const grossMargin = revenueExclBtw - cogs - actualShipping - packagingCost - adSpend
     const grossMarginPct = revenueExclBtw > 0 ? (grossMargin / revenueExclBtw) * 100 : 0
-    const roas = adSpend > 0 ? revenue / adSpend : null
-    const avgOrderValue = totalOrders > 0 ? revenue / totalOrders : 0
 
-    result.push({
-      month: mk,
-      revenue,
-      revenueExclBtw,
-      shippingCharged,
-      actualShipping,
-      cogs,
-      adSpend,
-      paymentCost,
-      packagingCost,
-      grossMargin,
-      grossMarginPct,
-      contributionMargin,
+    return {
+      month: mk, revenue, revenueExclBtw, shippingCharged, actualShipping, cogs, adSpend,
+      paymentCost, packagingCost, grossMargin, grossMarginPct, contributionMargin,
       contributionMarginPerOrder: totalOrders > 0 ? contributionMargin / totalOrders : 0,
-      roas,
+      roas: adSpend > 0 ? revenue / adSpend : null,
       totalOrders,
-      avgOrderValue,
-    })
-  }
-
-  return result
+      avgOrderValue: totalOrders > 0 ? revenue / totalOrders : 0,
+    }
+  })
 }
