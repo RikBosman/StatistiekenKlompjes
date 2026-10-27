@@ -1,4 +1,4 @@
-import { getProductPerformance, periodToRange, type ProductStatus } from '@/lib/analytics'
+import { getProductPerformance, periodToRange, type ProductStatus, type ProductPerformance } from '@/lib/analytics'
 import { prisma } from '@/lib/db'
 import { formatCurrency } from '@/lib/utils'
 import TrendSparkline from '@/components/TrendSparkline'
@@ -32,7 +32,7 @@ export default async function ProductsPage({
   const { period = '30d', filter, q, sort, stock } = await searchParams
   const { label: periodLabel } = periodToRange(period)
 
-  let products = null
+  let products: ProductPerformance[] | null = null
   let cacheAge: Date | null = null
   let error = null
 
@@ -40,7 +40,7 @@ export default async function ProductsPage({
     if (CACHED_PERIODS.has(period)) {
       const cached = await prisma.statsCache.findUnique({ where: { period } })
       if (cached) {
-        products = JSON.parse(cached.productsJson)
+        products = JSON.parse(cached.productsJson) as ProductPerformance[]
         cacheAge = cached.updatedAt
       }
     }
