@@ -1,9 +1,12 @@
 import { getProductPerformance, periodToRange, type ProductStatus } from '@/lib/analytics'
+import { prisma } from '@/lib/db'
 import { formatCurrency } from '@/lib/utils'
 import TrendSparkline from '@/components/TrendSparkline'
 import PeriodPicker from '@/components/PeriodPicker'
 
-export const revalidate = 300
+export const dynamic = 'force-dynamic'
+
+const CACHED_PERIODS = new Set(['7d', '30d', '3m', '6m', 'ytd', '1y'])
 
 const statusLabel: Record<ProductStatus, string> = {
   new_rising:     'Nieuw & stijgend',
@@ -30,10 +33,20 @@ export default async function ProductsPage({
   const { label: periodLabel } = periodToRange(period)
 
   let products = null
+  let cacheAge: Date | null = null
   let error = null
 
   try {
-    products = await getProductPerformance(period)
+    if (CACHED_PERIODS.has(period)) {
+      const cached = await prisma.statsCache.findUnique({ where: { period } })
+      if (cached) {
+        products = JSON.parse(cached.productsJson)
+        cacheAge = cached.updatedAt
+      }
+    }
+    if (!products) {
+      products = await getProductPerformance(period)
+    }
   } catch (err) {
     error = err instanceof Error ? err.message : 'Onbekende fout'
   }
@@ -121,7 +134,10 @@ export default async function ProductsPage({
       <div className="mb-8 flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h2 className="text-2xl font-bold text-slate-900">Producten</h2>
-          <p className="text-slate-500 text-sm mt-1">{periodLabel} — trend op basis van 6 maanden</p>
+          <p className="text-slate-500 text-sm mt-1">
+            {periodLabel} — trend op basis van 6 maanden
+            {cacheAge && <span className="text-slate-400"> · {new Date(cacheAge).toLocaleString('nl-NL', { dateStyle: 'short', timeStyle: 'short' })}</span>}
+          </p>
         </div>
         <PeriodPicker active={period} extraParams={extraParams} />
       </div>

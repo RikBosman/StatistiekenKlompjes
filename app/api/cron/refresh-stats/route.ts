@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { getOverviewStats, getMarginData } from '@/lib/analytics'
+import { getOverviewStats, getMarginData, getProductPerformance, getCustomerAnalytics } from '@/lib/analytics'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -11,29 +11,49 @@ function marginPeriodFor(period: string) {
   return period === '7d' || period === '30d' ? '6m' : period
 }
 
+async function getLogoCustomerIds(): Promise<number[]> {
+  const logoItems = await prisma.orderItem.findMany({
+    where: {
+      OR: [
+        { name: { contains: 'logo' } },
+        { name: { contains: 'tekst' } },
+        { name: { contains: 'Logo' } },
+        { name: { contains: 'Tekst' } },
+      ],
+    },
+    select: { order: { select: { status: true, customerId: true } } },
+  })
+  return [...new Set(
+    logoItems
+      .filter(i => i.order.status !== 'cancelled' && i.order.status !== 'refunded' && i.order.customerId !== null)
+      .map(i => i.order.customerId as number)
+  )]
+}
+
 export async function GET(req: NextRequest) {
   const secret = req.nextUrl.searchParams.get('secret')
   if (secret !== process.env.CRON_SECRET) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const syncLogs = await prisma.syncLog.findMany({
-    orderBy: { createdAt: 'desc' },
-    take: 5,
-  })
-  const syncLogsJson = JSON.stringify(syncLogs)
+  const [syncLogs, trendData, logoCustomerIds] = await Promise.all([
+    prisma.syncLog.findMany({ orderBy: { createdAt: 'desc' }, take: 5 }),
+    getMarginData('1y'),
+    getLogoCustomerIds(),
+  ])
 
-  // Compute trend data once (same for all periods)
-  const trendData = await getMarginData('1y')
+  const syncLogsJson = JSON.stringify(syncLogs)
   const trendJson = JSON.stringify(trendData)
 
   const results: string[] = []
 
   for (const period of PERIODS) {
     try {
-      const [stats, marginData] = await Promise.all([
+      const [stats, marginData, products, customerAnalytics] = await Promise.all([
         getOverviewStats(period),
         getMarginData(marginPeriodFor(period)),
+        getProductPerformance(period),
+        getCustomerAnalytics(period),
       ])
 
       await prisma.statsCache.upsert({
@@ -43,6 +63,8 @@ export async function GET(req: NextRequest) {
           marginJson: JSON.stringify(marginData),
           trendJson,
           syncLogsJson,
+          productsJson: JSON.stringify(products),
+          customersJson: JSON.stringify({ analytics: customerAnalytics, logoCustomerIds }),
         },
         create: {
           period,
@@ -50,6 +72,8 @@ export async function GET(req: NextRequest) {
           marginJson: JSON.stringify(marginData),
           trendJson,
           syncLogsJson,
+          productsJson: JSON.stringify(products),
+          customersJson: JSON.stringify({ analytics: customerAnalytics, logoCustomerIds }),
         },
       })
 

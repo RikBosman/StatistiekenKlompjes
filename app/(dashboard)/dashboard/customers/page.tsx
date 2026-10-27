@@ -3,7 +3,9 @@ import { getCustomerAnalytics, periodToRange } from '@/lib/analytics'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import PeriodPicker from '@/components/PeriodPicker'
 
-export const revalidate = 300
+export const dynamic = 'force-dynamic'
+
+const CACHED_PERIODS = new Set(['7d', '30d', '3m', '6m', 'ytd', '1y'])
 
 export default async function CustomersPage({
   searchParams,
@@ -15,31 +17,47 @@ export default async function CustomersPage({
 
   let analytics = null
   let logoCustomers = null
+  let cacheAge: Date | null = null
   let error = null
 
   try {
-    analytics = await getCustomerAnalytics(period)
+    let logoCustomerIds: number[] = []
 
-    // Two-step: find logo/tekst customer IDs via orderItems (avoids notIn), then fetch customers
-    const logoItems = await prisma.orderItem.findMany({
-      where: {
-        OR: [
-          { name: { contains: 'logo' } },
-          { name: { contains: 'tekst' } },
-          { name: { contains: 'Logo' } },
-          { name: { contains: 'Tekst' } },
-        ],
-      },
-      select: { order: { select: { status: true, customerId: true } } },
-    })
-    const logoCustomerIds = [
-      ...new Set(
-        logoItems
-          .filter((i) => i.order.status !== 'cancelled' && i.order.status !== 'refunded' && i.order.customerId)
-          .map((i) => i.order.customerId as number)
-      ),
-    ]
+    if (CACHED_PERIODS.has(period)) {
+      const cached = await prisma.statsCache.findUnique({ where: { period } })
+      if (cached) {
+        const parsed = JSON.parse(cached.customersJson)
+        analytics = parsed.analytics
+        logoCustomerIds = parsed.logoCustomerIds ?? []
+        cacheAge = cached.updatedAt
+      }
+    }
 
+    if (!analytics) {
+      analytics = await getCustomerAnalytics(period)
+
+      // Two-step: find logo/tekst customer IDs via orderItems (avoids notIn), then fetch customers
+      const logoItems = await prisma.orderItem.findMany({
+        where: {
+          OR: [
+            { name: { contains: 'logo' } },
+            { name: { contains: 'tekst' } },
+            { name: { contains: 'Logo' } },
+            { name: { contains: 'Tekst' } },
+          ],
+        },
+        select: { order: { select: { status: true, customerId: true } } },
+      })
+      logoCustomerIds = [
+        ...new Set(
+          logoItems
+            .filter((i) => i.order.status !== 'cancelled' && i.order.status !== 'refunded' && i.order.customerId)
+            .map((i) => i.order.customerId as number)
+        ),
+      ]
+    }
+
+    // Always fetch full customer objects live — reminder status changes dynamically
     logoCustomers = logoCustomerIds.length === 0
       ? []
       : await prisma.customer.findMany({
@@ -79,7 +97,10 @@ export default async function CustomersPage({
       <div className="mb-8 flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h2 className="text-2xl font-bold text-slate-900">Klanten</h2>
-          <p className="text-slate-500 text-sm mt-1">{periodLabel} — top klanten en segmentatie</p>
+          <p className="text-slate-500 text-sm mt-1">
+            {periodLabel} — top klanten en segmentatie
+            {cacheAge && <span className="text-slate-400"> · {new Date(cacheAge).toLocaleString('nl-NL', { dateStyle: 'short', timeStyle: 'short' })}</span>}
+          </p>
         </div>
         <PeriodPicker active={period} />
       </div>
