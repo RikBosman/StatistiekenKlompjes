@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/db'
-import { getCustomerAnalytics, periodToRange } from '@/lib/analytics'
+import { getCustomerAnalytics, periodToRange, type CustomerAnalytics } from '@/lib/analytics'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import PeriodPicker from '@/components/PeriodPicker'
 
@@ -15,7 +15,7 @@ export default async function CustomersPage({
   const { period = '30d' } = await searchParams
   const { label: periodLabel } = periodToRange(period)
 
-  let analytics = null
+  let analytics: CustomerAnalytics | null = null
   let logoCustomers = null
   let cacheAge: Date | null = null
   let error = null
@@ -27,7 +27,7 @@ export default async function CustomersPage({
       const cached = await prisma.statsCache.findUnique({ where: { period } })
       if (cached) {
         const parsed = JSON.parse(cached.customersJson)
-        analytics = parsed.analytics
+        analytics = parsed.analytics as CustomerAnalytics
         logoCustomerIds = parsed.logoCustomerIds ?? []
         cacheAge = cached.updatedAt
       }
