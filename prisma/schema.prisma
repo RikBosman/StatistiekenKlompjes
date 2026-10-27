@@ -232,8 +232,8 @@ model StatsCache {
   marginJson      String         // JSON: MarginData[] for revenue chart
   trendJson       String         // JSON: MarginData[] for trend chart (1y)
   syncLogsJson    String         // JSON: SyncLog[]
-  productsJson    String         // JSON: ProductPerformance[]
-  customersJson   String         // JSON: { analytics: CustomerAnalytics, logoCustomerIds: number[] }
+  productsJson    String   @default("[]")  // JSON: ProductPerformance[]
+  customersJson   String   @default("{}")  // JSON: { analytics: CustomerAnalytics, logoCustomerIds: number[] }
   updatedAt       DateTime @updatedAt
 
   @@map("stats_cache")
