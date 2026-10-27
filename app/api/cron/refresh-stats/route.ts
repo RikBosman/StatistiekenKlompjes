@@ -56,6 +56,7 @@ export async function GET(req: NextRequest) {
   const trendJson = JSON.stringify(trendData)
 
   const results: string[] = []
+  const details: Record<string, { products: number; topCustomers: number; logoCustomers: number }> = {}
 
   for (const period of PERIODS) {
     try {
@@ -88,10 +89,15 @@ export async function GET(req: NextRequest) {
       })
 
       results.push(period)
+      details[period] = {
+        products: products.length,
+        topCustomers: customerAnalytics.topCustomers.length,
+        logoCustomers: logoCustomers.length,
+      }
     } catch (err) {
       console.error(`refresh-stats failed for period ${period}:`, err)
     }
   }
 
-  return NextResponse.json({ ok: true, cached: results, updatedAt: new Date() })
+  return NextResponse.json({ ok: true, cached: results, details, updatedAt: new Date() })
 }
