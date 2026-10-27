@@ -3,6 +3,15 @@ import { getCustomerAnalytics, periodToRange, type CustomerAnalytics } from '@/l
 import { formatCurrency, formatDate } from '@/lib/utils'
 import PeriodPicker from '@/components/PeriodPicker'
 
+type LogoCustomer = {
+  id: number
+  firstName: string
+  lastName: string
+  email: string
+  orders: Array<{ date: Date | string; lineItems: Array<{ name: string }> }>
+  reminders: Array<{ status: string; sentAt: Date | string | null }>
+}
+
 export const dynamic = 'force-dynamic'
 
 const CACHED_PERIODS = new Set(['7d', '30d', '3m', '6m', 'ytd', '1y'])
@@ -16,7 +25,7 @@ export default async function CustomersPage({
   const { label: periodLabel } = periodToRange(period)
 
   let analytics: CustomerAnalytics | null = null
-  let logoCustomers = null
+  let logoCustomers: LogoCustomer[] | null = null
   let cacheAge: Date | null = null
   let error = null
 
@@ -29,7 +38,7 @@ export default async function CustomersPage({
         const parsed = JSON.parse(cached.customersJson)
         analytics = parsed.analytics as CustomerAnalytics
         logoCustomerIds = parsed.logoCustomerIds ?? []
-        logoCustomers = parsed.logoCustomers ?? []
+        logoCustomers = (parsed.logoCustomers ?? []) as LogoCustomer[]
         cacheAge = cached.updatedAt
       }
     }
