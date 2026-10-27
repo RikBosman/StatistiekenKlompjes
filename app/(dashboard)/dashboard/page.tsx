@@ -6,8 +6,12 @@ import RevenueChart from '@/components/RevenueChart'
 import MonthlyLineChart from '@/components/MonthlyLineChart'
 import SyncStatus from '@/components/SyncStatus'
 import PeriodPicker from '@/components/PeriodPicker'
+import type { OverviewStats, MarginData } from '@/lib/analytics'
+import type { SyncLog } from '@prisma/client'
 
-export const revalidate = 300
+export const dynamic = 'force-dynamic'
+
+const CACHED_PERIODS = new Set(['7d', '30d', '3m', '6m', 'ytd', '1y'])
 
 export default async function DashboardPage({
   searchParams,
@@ -16,19 +20,38 @@ export default async function DashboardPage({
 }) {
   const { period = '30d' } = await searchParams
 
-  let stats = null
-  let marginData = null
-  let trendData = null
-  let syncLogs = null
+  let stats: OverviewStats | null = null
+  let marginData: MarginData[] | null = null
+  let trendData: MarginData[] | null = null
+  let syncLogs: SyncLog[] | null = null
   let dbConnected = false
+  let cacheAge: Date | null = null
 
   try {
-    ;[stats, marginData, trendData, syncLogs] = await Promise.all([
-      getOverviewStats(period),
-      getMarginData(period === '7d' || period === '30d' ? '6m' : period),
-      getMarginData('1y'),
-      prisma.syncLog.findMany({ orderBy: { createdAt: 'desc' }, take: 5 }),
-    ])
+    // Try reading from cache for standard periods
+    if (CACHED_PERIODS.has(period)) {
+      const cached = await prisma.statsCache.findUnique({ where: { period } })
+      if (cached) {
+        stats = JSON.parse(cached.statsJson) as OverviewStats
+        marginData = JSON.parse(cached.marginJson) as MarginData[]
+        trendData = JSON.parse(cached.trendJson) as MarginData[]
+        syncLogs = JSON.parse(cached.syncLogsJson) as SyncLog[]
+        cacheAge = cached.updatedAt
+        dbConnected = true
+      }
+    }
+
+    // Fallback: compute on demand (specific months or empty cache)
+    if (!stats) {
+      const marginPeriod = period === '7d' || period === '30d' ? '6m' : period
+      ;[stats, marginData, trendData, syncLogs] = await Promise.all([
+        getOverviewStats(period),
+        getMarginData(marginPeriod),
+        getMarginData('1y'),
+        prisma.syncLog.findMany({ orderBy: { createdAt: 'desc' }, take: 5 }),
+      ])
+    }
+
     dbConnected = true
   } catch {
     // DB not seeded yet or env not configured
@@ -55,7 +78,14 @@ export default async function DashboardPage({
       <div className="mb-8 flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h2 className="text-2xl font-bold text-slate-900">Overzicht</h2>
-          <p className="text-slate-500 text-sm mt-1">{stats!.periodLabel} — vergelijking met vorige periode</p>
+          <p className="text-slate-500 text-sm mt-1">
+            {stats!.periodLabel} — vergelijking met vorige periode
+            {cacheAge && (
+              <span className="text-slate-400 ml-2">
+                · bijgewerkt {new Date(cacheAge).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}
+              </span>
+            )}
+          </p>
         </div>
         <PeriodPicker active={period} />
       </div>
