@@ -29,6 +29,7 @@ export default async function CustomersPage({
         const parsed = JSON.parse(cached.customersJson)
         analytics = parsed.analytics as CustomerAnalytics
         logoCustomerIds = parsed.logoCustomerIds ?? []
+        logoCustomers = parsed.logoCustomers ?? []
         cacheAge = cached.updatedAt
       }
     }
@@ -55,26 +56,25 @@ export default async function CustomersPage({
             .map((i) => i.order.customerId as number)
         ),
       ]
-    }
 
-    // Always fetch full customer objects live — reminder status changes dynamically
-    logoCustomers = logoCustomerIds.length === 0
-      ? []
-      : await prisma.customer.findMany({
-          where: { id: { in: logoCustomerIds } },
-          include: {
-            orders: {
-              orderBy: { date: 'desc' },
-              take: 1,
-              include: { lineItems: true },
+      logoCustomers = logoCustomerIds.length === 0
+        ? []
+        : await prisma.customer.findMany({
+            where: { id: { in: logoCustomerIds } },
+            include: {
+              orders: {
+                orderBy: { date: 'desc' },
+                take: 1,
+                include: { lineItems: true },
+              },
+              reminders: {
+                orderBy: { triggeredAt: 'desc' },
+                take: 1,
+              },
             },
-            reminders: {
-              orderBy: { triggeredAt: 'desc' },
-              take: 1,
-            },
-          },
-          orderBy: { id: 'desc' },
-        })
+            orderBy: { id: 'desc' },
+          })
+    }
   } catch (err) {
     error = err instanceof Error ? err.message : 'Onbekende fout'
   }

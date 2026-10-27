@@ -42,6 +42,16 @@ export async function GET(req: NextRequest) {
     getLogoCustomerIds(),
   ])
 
+  // Fetch full logo customer data once (period-independent) — so the customers page needs no live query
+  const logoCustomers = logoCustomerIds.length === 0 ? [] : await prisma.customer.findMany({
+    where: { id: { in: logoCustomerIds } },
+    include: {
+      orders: { orderBy: { date: 'desc' }, take: 1, include: { lineItems: true } },
+      reminders: { orderBy: { triggeredAt: 'desc' }, take: 1 },
+    },
+    orderBy: { id: 'desc' },
+  })
+
   const syncLogsJson = JSON.stringify(syncLogs)
   const trendJson = JSON.stringify(trendData)
 
@@ -64,7 +74,7 @@ export async function GET(req: NextRequest) {
           trendJson,
           syncLogsJson,
           productsJson: JSON.stringify(products),
-          customersJson: JSON.stringify({ analytics: customerAnalytics, logoCustomerIds }),
+          customersJson: JSON.stringify({ analytics: customerAnalytics, logoCustomerIds, logoCustomers }),
         },
         create: {
           period,
@@ -73,7 +83,7 @@ export async function GET(req: NextRequest) {
           trendJson,
           syncLogsJson,
           productsJson: JSON.stringify(products),
-          customersJson: JSON.stringify({ analytics: customerAnalytics, logoCustomerIds }),
+          customersJson: JSON.stringify({ analytics: customerAnalytics, logoCustomerIds, logoCustomers }),
         },
       })
 
