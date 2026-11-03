@@ -29,44 +29,55 @@ export async function sendCampaign(campaignId: number): Promise<{ sent: number; 
   let failed = 0
 
   const pending = campaign.recipients.filter((r) => r.status === 'pending')
+  const baseUrl = process.env.DASHBOARD_URL || 'https://statistieken.klompjes.com'
+  const utmParams = `utm_source=email&utm_medium=newsletter&utm_campaign=${encodeURIComponent(campaign.name)}&utm_content=campaign_${campaignId}`
 
-  for (const recipient of pending) {
-    try {
-      const baseUrl = process.env.DASHBOARD_URL || 'https://statistieken.klompjes.com'
-      const token = unsubscribeToken(recipient.email)
-      const unsubscribeUrl = `${baseUrl}/api/unsubscribe?email=${encodeURIComponent(recipient.email)}&token=${token}&campaign=${campaignId}`
+  // Send in batches of 50 to stay within rate limits
+  const BATCH_SIZE = 50
+  for (let i = 0; i < pending.length; i += BATCH_SIZE) {
+    const batch = pending.slice(i, i + BATCH_SIZE)
 
-      const renderedHtml = renderTemplate(campaign.template.bodyHtml, {
-        firstName: recipient.firstName,
-        email: recipient.email,
-        unsubscribeUrl,
-      })
+    await Promise.all(batch.map(async (recipient) => {
+      try {
+        const token = unsubscribeToken(recipient.email)
+        const unsubscribeUrl = `${baseUrl}/api/unsubscribe?email=${encodeURIComponent(recipient.email)}&token=${token}&campaign=${campaignId}`
 
-      // Tag all klompjes.com links with UTM params for campaign attribution
-      const utmParams = `utm_source=email&utm_medium=newsletter&utm_campaign=${encodeURIComponent(campaign.name)}&utm_content=campaign_${campaignId}`
-      const html = renderedHtml.replace(
-        /href="(https?:\/\/(?:www\.)?klompjes\.com[^"]*?)"/g,
-        (_, url) => `href="${url}${url.includes('?') ? '&' : '?'}${utmParams}"`
-      )
-      const subject = renderTemplate(campaign.template.subject, {
-        firstName: recipient.firstName,
-        email: recipient.email,
-      })
+        const renderedHtml = renderTemplate(campaign.template.bodyHtml, {
+          firstName: recipient.firstName,
+          email: recipient.email,
+          unsubscribeUrl,
+        })
 
-      await sendEmail({ to: recipient.email, toName: recipient.firstName, subject, html })
+        // Tag all klompjes.com links with UTM params for campaign attribution
+        const html = renderedHtml.replace(
+          /href="(https?:\/\/(?:www\.)?klompjes\.com[^"]*?)"/g,
+          (_, url) => `href="${url}${url.includes('?') ? '&' : '?'}${utmParams}"`
+        )
+        const subject = renderTemplate(campaign.template.subject, {
+          firstName: recipient.firstName,
+          email: recipient.email,
+        })
 
-      await prisma.campaignRecipient.update({
-        where: { id: recipient.id },
-        data: { status: 'sent', sentAt: new Date() },
-      })
-      sent++
-    } catch (err) {
-      const error = err instanceof Error ? err.message : String(err)
-      await prisma.campaignRecipient.update({
-        where: { id: recipient.id },
-        data: { status: 'failed', error },
-      })
-      failed++
+        await sendEmail({ to: recipient.email, toName: recipient.firstName, subject, html })
+
+        await prisma.campaignRecipient.update({
+          where: { id: recipient.id },
+          data: { status: 'sent', sentAt: new Date() },
+        })
+        sent++
+      } catch (err) {
+        const error = err instanceof Error ? err.message : String(err)
+        await prisma.campaignRecipient.update({
+          where: { id: recipient.id },
+          data: { status: 'failed', error },
+        })
+        failed++
+      }
+    }))
+
+    // Small pause between batches to avoid rate limiting
+    if (i + BATCH_SIZE < pending.length) {
+      await new Promise((r) => setTimeout(r, 200))
     }
   }
 

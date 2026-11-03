@@ -1,6 +1,4 @@
-import axios, { AxiosError } from 'axios'
-
-const BULK_URL = 'https://bulk.api.mailtrap.io/api/send'
+import { Resend } from 'resend'
 
 export interface SendEmailOptions {
   to: string
@@ -10,34 +8,17 @@ export interface SendEmailOptions {
 }
 
 export async function sendEmail({ to, toName, subject, html }: SendEmailOptions) {
-  const token = process.env.MAILTRAP_API_TOKEN
-  const fromEmail = process.env.MAILTRAP_FROM_EMAIL
-  const fromName = process.env.MAILTRAP_FROM_NAME || 'Klompjes'
+  const apiKey = process.env.RESEND_API_KEY
+  const fromEmail = process.env.RESEND_FROM_EMAIL
+  const fromName = process.env.RESEND_FROM_NAME || 'Klompjes'
 
-  if (!token || !fromEmail) {
-    throw new Error('MAILTRAP_API_TOKEN en MAILTRAP_FROM_EMAIL zijn vereist')
+  if (!apiKey || !fromEmail) {
+    throw new Error('RESEND_API_KEY en RESEND_FROM_EMAIL zijn vereist')
   }
 
-  try {
-    await axios.post(
-      BULK_URL,
-      {
-        from: { email: fromEmail, name: fromName },
-        to: [{ email: to, name: toName || to }],
-        subject,
-        html,
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      },
-    )
-  } catch (err) {
-    const axiosErr = err as AxiosError
-    const status = axiosErr.response?.status
-    const detail = JSON.stringify(axiosErr.response?.data)
-    throw new Error(`Mailtrap fout ${status}: ${detail}`)
-  }
+  const resend = new Resend(apiKey)
+  const from = `${fromName} <${fromEmail}>`
+
+  const { error } = await resend.emails.send({ from, to, subject, html })
+  if (error) throw new Error(`Resend fout: ${error.message}`)
 }

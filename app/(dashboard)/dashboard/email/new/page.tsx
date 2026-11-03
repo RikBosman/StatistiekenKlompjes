@@ -275,7 +275,7 @@ export default function NewCampaignPage() {
         <div className="bg-white rounded-xl border border-slate-200 p-10 text-center">
           <div className="text-5xl mb-4">✅</div>
           <h3 className="text-xl font-bold text-slate-900 mb-2">Campagne verzonden!</h3>
-          <p className="text-slate-500 text-sm mb-6">De e-mails zijn verstuurd via Mailtrap.</p>
+          <p className="text-slate-500 text-sm mb-6">De e-mails zijn verstuurd via Resend.</p>
           <div className="flex gap-3 justify-center">
             <button
               onClick={() => router.push('/dashboard/email')}
