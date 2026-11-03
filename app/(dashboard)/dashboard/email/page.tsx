@@ -229,12 +229,20 @@ export default async function EmailPage() {
           <h2 className="text-2xl font-bold text-slate-900">E-mail campagnes</h2>
           <p className="text-slate-500 text-sm mt-1">Stuur gerichte e-mails naar klantsegmenten</p>
         </div>
-        <Link
-          href="/dashboard/email/new"
-          className="px-4 py-2 bg-brand-600 text-white text-sm rounded-lg hover:bg-brand-700 transition-colors font-medium"
-        >
-          + Nieuwe campagne
-        </Link>
+        <div className="flex gap-2">
+          <Link
+            href="/dashboard/email/test"
+            className="px-4 py-2 border border-slate-200 text-slate-600 text-sm rounded-lg hover:bg-slate-50 transition-colors font-medium"
+          >
+            Test e-mail
+          </Link>
+          <Link
+            href="/dashboard/email/new"
+            className="px-4 py-2 bg-brand-600 text-white text-sm rounded-lg hover:bg-brand-700 transition-colors font-medium"
+          >
+            + Nieuwe campagne
+          </Link>
+        </div>
       </div>
 
       {/* Smart lists */}
