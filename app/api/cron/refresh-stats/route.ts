@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getOverviewStats, getMarginData, getProductPerformance, getCustomerAnalytics } from '@/lib/analytics'
+import { sendCampaign } from '@/lib/campaigns'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -99,5 +100,23 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ ok: true, cached: results, details, updatedAt: new Date() })
+  // Send next batch for any active batched campaigns
+  const batchedCampaigns = await prisma.campaign.findMany({
+    where: {
+      dailyLimit: { gt: 0 },
+      status: { in: ['sending', 'draft'] },
+      recipients: { some: { status: 'pending' } },
+    },
+  })
+  const campaignBatches: Record<string, unknown>[] = []
+  for (const campaign of batchedCampaigns) {
+    try {
+      const result = await sendCampaign(campaign.id, campaign.dailyLimit)
+      campaignBatches.push({ id: campaign.id, name: campaign.name, ...result })
+    } catch (err) {
+      campaignBatches.push({ id: campaign.id, name: campaign.name, error: String(err) })
+    }
+  }
+
+  return NextResponse.json({ ok: true, cached: results, details, campaignBatches, updatedAt: new Date() })
 }
