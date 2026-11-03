@@ -18,7 +18,7 @@ export function renderTemplate(html: string, customer: { firstName: string; emai
     .replace(/\{\{unsubscribe_url\}\}/gi, customer.unsubscribeUrl || '#')
 }
 
-export async function sendCampaign(campaignId: number): Promise<{ sent: number; failed: number }> {
+export async function sendCampaign(campaignId: number, limit?: number): Promise<{ sent: number; failed: number; remaining: number }> {
   const campaign = await prisma.campaign.findUnique({
     where: { id: campaignId },
     include: { template: true, recipients: true },
@@ -28,7 +28,8 @@ export async function sendCampaign(campaignId: number): Promise<{ sent: number; 
   let sent = 0
   let failed = 0
 
-  const pending = campaign.recipients.filter((r) => r.status === 'pending')
+  const allPending = campaign.recipients.filter((r) => r.status === 'pending')
+  const pending = limit ? allPending.slice(0, limit) : allPending
   const baseUrl = process.env.DASHBOARD_URL || 'https://statistieken.klompjes.com'
   const utmParams = `utm_source=email&utm_medium=newsletter&utm_campaign=${encodeURIComponent(campaign.name)}&utm_content=campaign_${campaignId}`
 
@@ -81,16 +82,20 @@ export async function sendCampaign(campaignId: number): Promise<{ sent: number; 
     }
   }
 
+  const remaining = allPending.length - pending.length
+  const newTotalSent = campaign.totalSent + sent
+  const allDone = remaining === 0
+
   await prisma.campaign.update({
     where: { id: campaignId },
     data: {
-      status: failed === 0 ? 'sent' : 'failed',
-      totalSent: sent,
-      sentAt: campaign.sentAt ?? new Date(), // preserve original send date on retry
+      status: allDone ? (failed === 0 ? 'sent' : 'failed') : 'sending',
+      totalSent: newTotalSent,
+      sentAt: allDone ? (campaign.sentAt ?? new Date()) : campaign.sentAt,
     },
   })
 
-  return { sent, failed }
+  return { sent, failed, remaining }
 }
 
 export async function prepareCampaign(campaignId: number): Promise<number> {

@@ -52,6 +52,8 @@ export default function NewCampaignPage() {
   const [previewHtml, setPreviewHtml] = useState('')
   const [recipientCount, setRecipientCount] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
+  const [dailyLimit, setDailyLimit] = useState<number>(3000)
+  const [useDailyLimit, setUseDailyLimit] = useState(false)
   const [sending, setSending] = useState(false)
   const [campaignId, setCampaignId] = useState<number | null>(null)
 
@@ -91,6 +93,7 @@ export default function NewCampaignPage() {
         templateId: selectedTemplate.id,
         segmentType: selectedSegment,
         listId: selectedSegment === 'list' ? selectedList : null,
+        dailyLimit: useDailyLimit ? dailyLimit : 0,
       }),
     })
     const campaign = await res.json()
@@ -242,6 +245,43 @@ export default function NewCampaignPage() {
                 <div className="flex gap-2"><span className="text-slate-400 w-28">Ontvangers:</span><span className="text-emerald-700 font-semibold">{recipientCount} personen</span></div>
               )}
             </div>
+          </div>
+
+          <div className="bg-white rounded-xl border border-slate-200 p-6">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h3 className="font-semibold text-slate-900">Dagelijks limiet</h3>
+                <p className="text-xs text-slate-400 mt-0.5">Verspreid de verzending over meerdere dagen om spam-filters te vermijden</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setUseDailyLimit(!useDailyLimit)}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${useDailyLimit ? 'bg-brand-600' : 'bg-slate-200'}`}
+              >
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${useDailyLimit ? 'translate-x-6' : 'translate-x-1'}`} />
+              </button>
+            </div>
+            {useDailyLimit && (
+              <div className="space-y-2">
+                <div className="flex gap-2 flex-wrap">
+                  {[2000, 3000, 5000, 10000].map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setDailyLimit(n)}
+                      className={`px-3 py-1.5 rounded-lg text-sm border transition-colors ${dailyLimit === n ? 'bg-brand-600 text-white border-brand-600' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                    >
+                      {n.toLocaleString('nl')}/dag
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-slate-400">
+                  {recipientCount && recipientCount > dailyLimit
+                    ? `Duurt ${Math.ceil(recipientCount / dailyLimit)} dagen — cron verstuurt elke ochtend de volgende batch`
+                    : 'Alle ontvangers passen in één dag'}
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="bg-white rounded-xl border border-slate-200 p-6">

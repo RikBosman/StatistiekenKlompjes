@@ -152,7 +152,8 @@ model Campaign {
   templateId   Int
   segmentType  String?   // logo_buyer | inactive_3m | top_customers | list
   listId       Int?
-  status       String    @default("draft") // draft | sent | failed
+  status       String    @default("draft") // draft | sending | sent | failed
+  dailyLimit   Int       @default(0)       // 0 = send all at once, >0 = max per day via cron
   totalSent    Int       @default(0)
   unsubscribes Int       @default(0)
   createdAt    DateTime  @default(now())

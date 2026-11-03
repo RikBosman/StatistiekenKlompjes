@@ -5,6 +5,7 @@ import { z } from 'zod'
 import type { SegmentType } from '@/lib/segments'
 
 const SEGMENT_TYPES: [SegmentType, ...SegmentType[]] = [
+  'all_customers',
   'logo_buyer', 'repeat_buyer', 'inactive_3m', 'top_customers', 'list',
   'emmer_buyer', 'glaswerk_buyer', 'gravering_buyer', 'klompen_logo_buyer', 'tulp_buyer',
   'cross_emmer_glaswerk', 'cross_glaswerk_emmer', 'cross_logo_gravering', 'cross_gravering_logo',
@@ -15,6 +16,7 @@ const schema = z.object({
   templateId: z.number().int(),
   segmentType: z.enum(SEGMENT_TYPES),
   listId: z.number().int().nullable().optional(),
+  dailyLimit: z.number().int().min(0).default(0),
 })
 
 export async function GET() {
@@ -39,6 +41,7 @@ export async function POST(req: NextRequest) {
       templateId: parsed.data.templateId,
       segmentType: parsed.data.segmentType,
       listId: parsed.data.listId ?? null,
+      dailyLimit: parsed.data.dailyLimit,
     },
   })
 

@@ -219,6 +219,7 @@ export default async function EmailPage() {
   const statusBadge = (status: string) => {
     if (status === 'sent') return <span className="px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700 font-medium">Verzonden</span>
     if (status === 'failed') return <span className="px-2 py-0.5 rounded-full text-xs bg-red-100 text-red-700 font-medium">Mislukt</span>
+    if (status === 'sending') return <span className="px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-700 font-medium">Bezig (batches)</span>
     return <span className="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-500 font-medium">Concept</span>
   }
 
