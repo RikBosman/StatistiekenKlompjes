@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { sendEmail } from '@/lib/mailtrap'
+import { renderTemplate } from '@/lib/campaigns'
 
 export async function POST(req: NextRequest) {
   const { emails, templateId } = await req.json()
@@ -18,10 +19,16 @@ export async function POST(req: NextRequest) {
     const trimmed = email.trim()
     if (!trimmed) continue
     try {
+      const html = renderTemplate(template.bodyHtml, {
+        firstName: 'Testpersoon',
+        email: trimmed,
+        unsubscribeUrl: '#uitschrijven',
+      })
+      const subject = renderTemplate(template.subject, { firstName: 'Testpersoon', email: trimmed })
       await sendEmail({
         to: trimmed,
-        subject: `[TEST] ${template.subject}`,
-        html: template.bodyHtml,
+        subject: `[TEST] ${subject}`,
+        html,
       })
       results.push({ email: trimmed, ok: true })
     } catch (err) {
