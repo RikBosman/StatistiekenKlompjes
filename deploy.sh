@@ -1,23 +1,21 @@
 #!/bin/bash
-# Wordt uitgevoerd na elke git pull/push op de server.
-# Koppel dit aan je git post-receive hook of roep het handmatig aan.
-
 set -e
 
-echo "==> Installing dependencies..."
-npm ci --omit=dev
+cd ~/domains/statistieken.klompjes.com/public_html
 
-echo "==> Generating Prisma client..."
-npx prisma generate
+echo "Pulling latest code..."
+git pull origin claude/woocommerce-analytics-dashboard-qdd72t
 
-echo "==> Running database migrations..."
-npx prisma db push --accept-data-loss
+echo "Installing dependencies..."
+~/.nvm/versions/node/v20.20.2/bin/npm install --production=false
 
-echo "==> Building Next.js..."
-npm run build
+echo "Pushing database schema..."
+~/.nvm/versions/node/v20.20.2/bin/npx prisma db push
 
-echo "==> Restarting app with PM2..."
-pm2 reload ecosystem.config.js --update-env || pm2 start ecosystem.config.js
+echo "Building..."
+~/.nvm/versions/node/v20.20.2/bin/npm run build
 
-echo "==> Done!"
-pm2 status
+echo "Restarting server..."
+~/.nvm/versions/node/v20.20.2/bin/pm2 restart next
+
+echo "Done!"
