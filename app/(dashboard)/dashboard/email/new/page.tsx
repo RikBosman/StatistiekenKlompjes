@@ -23,6 +23,7 @@ interface SegmentInfo {
 }
 
 const SEGMENTS: SegmentInfo[] = [
+  { type: 'all_customers', label: 'Alle klanten', description: 'Alle klanten in de database' },
   { type: 'emmer_buyer', label: 'Emmer kopers', description: 'Klanten die een emmer hebben besteld' },
   { type: 'glaswerk_buyer', label: 'Glaswerk kopers', description: 'Klanten die aperol glas, bierglas, bierpul, champagneglas e.d. hebben besteld' },
   { type: 'gravering_buyer', label: 'Gravering kopers', description: 'Klanten die een product met gravering hebben besteld' },

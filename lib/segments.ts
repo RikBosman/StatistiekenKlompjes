@@ -2,6 +2,7 @@ import { prisma } from './db'
 import { subMonths } from 'date-fns'
 
 export type SegmentType =
+  | 'all_customers'
   | 'logo_buyer'
   | 'inactive_3m'
   | 'top_customers'
@@ -40,6 +41,22 @@ export async function getSegmentCustomers(
   segmentType: SegmentType,
   listId?: number
 ): Promise<SegmentCustomer[]> {
+  if (segmentType === 'all_customers') {
+    const customers = await prisma.customer.findMany({
+      include: {
+        orders: { orderBy: { date: 'desc' }, take: 1, select: { date: true, status: true } },
+      },
+      orderBy: { id: 'desc' },
+    })
+    return customers.map((c) => ({
+      id: c.id,
+      email: c.email,
+      firstName: c.firstName,
+      lastName: c.lastName,
+      lastOrderDate: c.orders[0]?.date,
+    }))
+  }
+
   if (segmentType === 'logo_buyer') {
     // Find logo/tekst order items first, join orders in JS to avoid notIn
     const items = await prisma.orderItem.findMany({
@@ -319,6 +336,7 @@ export async function getSegmentCustomers(
 
 export function segmentLabel(type: SegmentType): string {
   const labels: Record<SegmentType, string> = {
+    all_customers: 'Alle klanten',
     logo_buyer: 'Logo / tekst kopers',
     inactive_3m: 'Slapende klanten (3m+)',
     top_customers: 'Top klanten (op omzet)',
