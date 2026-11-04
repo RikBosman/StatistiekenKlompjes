@@ -1,6 +1,12 @@
 import { prisma } from './db'
 import { fetchProducts, fetchOrdersPage } from './woocommerce'
 
+const BLOCKED_EMAIL_DOMAINS = ['@verkopen.bol.com', '@bol.com']
+function isBolEmail(email: string): boolean {
+  const lower = email.toLowerCase()
+  return BLOCKED_EMAIL_DOMAINS.some((d) => lower.endsWith(d))
+}
+
 export async function syncProducts(): Promise<{ count: number; error?: string }> {
   try {
     const products = await fetchProducts()
@@ -91,7 +97,7 @@ export async function syncOrders(afterDate?: string, beforeDate?: string): Promi
         const shippingMethod = o.shipping_lines?.[0]?.method_title ?? null
 
         let customer = null
-        if (customerEmail) {
+        if (customerEmail && !isBolEmail(customerEmail)) {
           if (o.customer_id > 0) {
             // Registered WooCommerce account
             const byId = await prisma.customer.findUnique({ where: { id: o.customer_id } })
