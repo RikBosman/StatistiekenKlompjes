@@ -9,9 +9,8 @@ if (!email) {
 }
 
 async function main() {
-  const customer = await prisma.customer.findFirst({
-    where: { email: { equals: email, mode: 'insensitive' } },
-  })
+  const rows = await prisma.$queryRaw`SELECT id, firstName, lastName, email FROM Customer WHERE LOWER(email) = ${email} LIMIT 1`
+  const customer = rows[0] ?? null
 
   if (!customer) {
     console.log(`Geen klant gevonden met e-mail: ${email}`)
