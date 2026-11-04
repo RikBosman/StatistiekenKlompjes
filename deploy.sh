@@ -1,6 +1,8 @@
 #!/bin/bash
 set -e
 
+source ~/.nvm/nvm.sh
+
 cd ~/domains/statistieken.klompjes.com/public_html
 
 echo "Installing dependencies..."
@@ -13,6 +15,8 @@ echo "Building..."
 ~/.nvm/versions/node/v20.20.2/bin/npm run build
 
 echo "Restarting server..."
-~/.nvm/versions/node/v20.20.2/bin/pm2 restart next
+fuser -k 3000/tcp 2>/dev/null || true
+sleep 2
+nohup node node_modules/.bin/next start >> ~/nextjs.log 2>&1 &
 
 echo "Done!"
