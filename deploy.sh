@@ -3,9 +3,6 @@ set -e
 
 cd ~/domains/statistieken.klompjes.com/public_html
 
-echo "Pulling latest code..."
-git pull origin claude/woocommerce-analytics-dashboard-qdd72t
-
 echo "Installing dependencies..."
 ~/.nvm/versions/node/v20.20.2/bin/npm install --production=false
 
