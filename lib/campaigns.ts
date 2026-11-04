@@ -30,7 +30,11 @@ export async function sendCampaign(campaignId: number, limit?: number): Promise<
   let sent = 0
   let failed = 0
 
-  const allPending = campaign.recipients.filter((r) => r.status === 'pending')
+  // Also filter blocked domains at send time (catches existing DB records)
+  const BLOCKED_DOMAINS = ['@verkopen.bol.com']
+  const allPending = campaign.recipients.filter(
+    (r) => r.status === 'pending' && !BLOCKED_DOMAINS.some((d) => r.email.toLowerCase().endsWith(d))
+  )
   const pending = limit ? allPending.slice(0, limit) : allPending
   const baseUrl = process.env.DASHBOARD_URL || 'https://statistieken.klompjes.com'
   const utmParams = `utm_source=email&utm_medium=newsletter&utm_campaign=${encodeURIComponent(campaign.name)}&utm_content=campaign_${campaignId}`
