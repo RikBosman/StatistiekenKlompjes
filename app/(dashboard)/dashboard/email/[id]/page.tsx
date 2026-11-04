@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import DeleteCampaignButton from './DeleteCampaignButton'
 import RetryButton from './RetryButton'
+import ChangeTemplateButton from './ChangeTemplateButton'
 
 export const revalidate = 0
 
@@ -19,6 +20,11 @@ export default async function CampaignDetailPage({ params }: { params: Promise<{
   })
 
   if (!campaign) return notFound()
+
+  const allTemplates = await prisma.emailTemplate.findMany({
+    select: { id: true, name: true },
+    orderBy: { name: 'asc' },
+  })
 
   const sentCount = campaign.recipients.filter((r) => r.status === 'sent').length
   const failedCount = campaign.recipients.filter((r) => r.status === 'failed').length
@@ -135,7 +141,7 @@ export default async function CampaignDetailPage({ params }: { params: Promise<{
       <div className="bg-white rounded-xl border border-slate-200 p-6 mb-6">
         <h3 className="font-semibold text-slate-900 mb-3">Details</h3>
         <div className="grid grid-cols-2 gap-4 text-sm">
-          <div><span className="text-slate-400">Sjabloon: </span><span className="text-slate-700">{campaign.template.name}</span></div>
+          <div className="flex items-center gap-2"><span className="text-slate-400">Sjabloon: </span><span className="text-slate-700">{campaign.template.name}</span><ChangeTemplateButton campaignId={campaign.id} currentTemplateId={campaign.templateId} templates={allTemplates} /></div>
           <div><span className="text-slate-400">Doelgroep: </span><span className="text-slate-700">{segmentLabels[campaign.segmentType ?? ''] ?? '—'}</span></div>
           <div><span className="text-slate-400">Aangemaakt: </span><span className="text-slate-700">{formatDate(campaign.createdAt)}</span></div>
           <div><span className="text-slate-400">Verzonden: </span><span className="text-slate-700">{campaign.sentAt ? formatDate(campaign.sentAt) : '—'}</span></div>
