@@ -1,6 +1,6 @@
 import crypto from 'crypto'
 import { prisma } from './db'
-import { sendEmail } from './mailtrap'
+import { sendEmailBatch } from './mailtrap'
 import { getSegmentCustomers, SegmentType } from './segments'
 
 export function unsubscribeToken(email: string): string {
@@ -35,52 +35,50 @@ export async function sendCampaign(campaignId: number, limit?: number): Promise<
   const baseUrl = process.env.DASHBOARD_URL || 'https://statistieken.klompjes.com'
   const utmParams = `utm_source=email&utm_medium=newsletter&utm_campaign=${encodeURIComponent(campaign.name)}&utm_content=campaign_${campaignId}`
 
-  // Send in batches of 50 to stay within rate limits
+  // Use Resend batch API: 1 API call per 50 emails, 1 second between batches
   const BATCH_SIZE = 50
   for (let i = 0; i < pending.length; i += BATCH_SIZE) {
     const batch = pending.slice(i, i + BATCH_SIZE)
+    const sentAt = new Date()
 
-    await Promise.all(batch.map(async (recipient) => {
-      try {
-        const token = unsubscribeToken(recipient.email)
-        const unsubscribeUrl = `${baseUrl}/api/unsubscribe?email=${encodeURIComponent(recipient.email)}&token=${token}&campaign=${campaignId}`
+    const emails = batch.map((recipient) => {
+      const token = unsubscribeToken(recipient.email)
+      const unsubscribeUrl = `${baseUrl}/api/unsubscribe?email=${encodeURIComponent(recipient.email)}&token=${token}&campaign=${campaignId}`
+      const renderedHtml = renderTemplate(campaign.template.bodyHtml, {
+        firstName: recipient.firstName,
+        email: recipient.email,
+        unsubscribeUrl,
+      })
+      const html = renderedHtml.replace(
+        /href="(https?:\/\/(?:www\.)?klompjes\.com[^"]*?)"/g,
+        (_, url) => `href="${url}${url.includes('?') ? '&' : '?'}${utmParams}"`
+      )
+      const subject = renderTemplate(campaign.template.subject, {
+        firstName: recipient.firstName,
+        email: recipient.email,
+      })
+      return { to: recipient.email, subject, html }
+    })
 
-        const renderedHtml = renderTemplate(campaign.template.bodyHtml, {
-          firstName: recipient.firstName,
-          email: recipient.email,
-          unsubscribeUrl,
-        })
+    try {
+      await sendEmailBatch(emails)
+      await prisma.campaignRecipient.updateMany({
+        where: { id: { in: batch.map((r) => r.id) } },
+        data: { status: 'sent', sentAt },
+      })
+      sent += batch.length
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err)
+      await prisma.campaignRecipient.updateMany({
+        where: { id: { in: batch.map((r) => r.id) } },
+        data: { status: 'failed', error },
+      })
+      failed += batch.length
+    }
 
-        // Tag all klompjes.com links with UTM params for campaign attribution
-        const html = renderedHtml.replace(
-          /href="(https?:\/\/(?:www\.)?klompjes\.com[^"]*?)"/g,
-          (_, url) => `href="${url}${url.includes('?') ? '&' : '?'}${utmParams}"`
-        )
-        const subject = renderTemplate(campaign.template.subject, {
-          firstName: recipient.firstName,
-          email: recipient.email,
-        })
-
-        await sendEmail({ to: recipient.email, toName: recipient.firstName, subject, html })
-
-        await prisma.campaignRecipient.update({
-          where: { id: recipient.id },
-          data: { status: 'sent', sentAt: new Date() },
-        })
-        sent++
-      } catch (err) {
-        const error = err instanceof Error ? err.message : String(err)
-        await prisma.campaignRecipient.update({
-          where: { id: recipient.id },
-          data: { status: 'failed', error },
-        })
-        failed++
-      }
-    }))
-
-    // Small pause between batches to avoid rate limiting
+    // 1 second between batches (Resend: max 10 req/sec, batch = 1 req)
     if (i + BATCH_SIZE < pending.length) {
-      await new Promise((r) => setTimeout(r, 200))
+      await new Promise((r) => setTimeout(r, 1000))
     }
   }
 
