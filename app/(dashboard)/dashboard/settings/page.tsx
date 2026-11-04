@@ -80,6 +80,21 @@ export default async function SettingsPage() {
         </p>
       </div>
 
+      {/* GDPR */}
+      <div className="bg-white rounded-lg border border-slate-200 p-6 mb-6">
+        <h3 className="font-medium text-slate-700 mb-2">AVG / GDPR — Klant verwijderen</h3>
+        <p className="text-sm text-slate-500 mb-4">
+          Verzoek ontvangen van een klant om hun gegevens te verwijderen? Verwijder ze hier volledig uit het systeem.
+          Bestellingen blijven bewaard voor statistieken maar worden ontkoppeld van de klant.
+        </p>
+        <a
+          href="/dashboard/settings/gdpr"
+          className="inline-block px-4 py-2 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 transition-colors"
+        >
+          Klant verwijderen
+        </a>
+      </div>
+
       {/* Email template link */}
       <div className="bg-white rounded-lg border border-slate-200 p-6">
         <h3 className="font-medium text-slate-700 mb-3">E-mailtemplate</h3>
