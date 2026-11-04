@@ -2,55 +2,49 @@ import { PrismaClient } from '@prisma/client'
 
 const prisma = new PrismaClient()
 const BLOCKED_DOMAINS = ['@verkopen.bol.com', '@bol.com']
+const BATCH = 500
+
+async function deleteInBatches(label, fn, ids) {
+  let total = 0
+  for (let i = 0; i < ids.length; i += BATCH) {
+    const chunk = ids.slice(i, i + BATCH)
+    const result = await fn(chunk)
+    total += result.count
+    process.stdout.write(`\r${label}: ${total}`)
+  }
+  console.log()
+  return total
+}
 
 async function main() {
-  // Find all customer IDs with blocked domains
   const customers = await prisma.customer.findMany({
     where: { OR: BLOCKED_DOMAINS.map((d) => ({ email: { endsWith: d } })) },
-    select: { id: true, email: true },
+    select: { id: true },
   })
 
-  console.log(`Gevonden klanten met geblokkeerde domeinen: ${customers.length}`)
-  if (customers.length === 0) {
-    console.log('Niks te doen.')
-    return
-  }
+  console.log(`Klanten met bol.com domein: ${customers.length}`)
+  if (customers.length === 0) { console.log('Niks te doen.'); return }
 
-  const customerIds = customers.map((c) => c.id)
+  const ids = customers.map((c) => c.id)
 
-  // 1. Set customerId = null on orders (revenue stays intact)
-  const updatedOrders = await prisma.order.updateMany({
-    where: { customerId: { in: customerIds } },
-    data: { customerId: null },
-  })
-  console.log(`Orders ontkoppeld (omzet blijft): ${updatedOrders.count}`)
+  await deleteInBatches('Orders ontkoppeld', (chunk) =>
+    prisma.order.updateMany({ where: { customerId: { in: chunk } }, data: { customerId: null } }), ids)
 
-  // 2. Delete campaign recipients
-  const deletedRecipients = await prisma.campaignRecipient.deleteMany({
-    where: { customerId: { in: customerIds } },
-  })
-  console.log(`Campagne-ontvangers verwijderd: ${deletedRecipients.count}`)
+  await deleteInBatches('Campagne-ontvangers verwijderd', (chunk) =>
+    prisma.campaignRecipient.deleteMany({ where: { customerId: { in: chunk } } }), ids)
 
-  // 3. Delete reminders
-  const deletedReminders = await prisma.reminder.deleteMany({
-    where: { customerId: { in: customerIds } },
-  })
-  console.log(`Herinneringen verwijderd: ${deletedReminders.count}`)
+  await deleteInBatches('Herinneringen verwijderd', (chunk) =>
+    prisma.reminder.deleteMany({ where: { customerId: { in: chunk } } }), ids)
 
-  // 4. Delete list memberships
-  const deletedListMembers = await prisma.customerListMember.deleteMany({
-    where: { customerId: { in: customerIds } },
-  })
-  console.log(`Lijst-leden verwijderd: ${deletedListMembers.count}`)
+  await deleteInBatches('Lijst-leden verwijderd', (chunk) =>
+    prisma.customerListMember.deleteMany({ where: { customerId: { in: chunk } } }), ids)
 
-  // 5. Delete the customers themselves
-  const deletedCustomers = await prisma.customer.deleteMany({
-    where: { id: { in: customerIds } },
-  })
-  console.log(`\nKlanten verwijderd: ${deletedCustomers.count}`)
-  console.log('Klaar! Omzet van die bestellingen telt gewoon mee.')
+  const deleted = await deleteInBatches('Klanten verwijderd', (chunk) =>
+    prisma.customer.deleteMany({ where: { id: { in: chunk } } }), ids)
+
+  console.log(`\nKlaar! ${deleted} klanten verwijderd. Omzet telt nog mee.`)
 }
 
 main()
-  .catch(console.error)
+  .catch((err) => { console.error('FOUT:', err.message); process.exit(1) })
   .finally(() => prisma.$disconnect())
