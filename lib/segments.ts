@@ -3,6 +3,7 @@ import { subMonths } from 'date-fns'
 
 export type SegmentType =
   | 'all_customers'
+  | 'klompsloffen_buyer'
   | 'logo_buyer'
   | 'inactive_3m'
   | 'top_customers'
@@ -224,6 +225,10 @@ export async function getSegmentCustomers(
     }))
   }
 
+  if (segmentType === 'klompsloffen_buyer') {
+    return keywordSegment(['klompsloffen', 'sloffen'])
+  }
+
   if (segmentType === 'emmer_buyer') {
     return keywordSegment(['emmer'])
   }
@@ -337,6 +342,7 @@ export async function getSegmentCustomers(
 export function segmentLabel(type: SegmentType): string {
   const labels: Record<SegmentType, string> = {
     all_customers: 'Alle klanten',
+    klompsloffen_buyer: 'Klompsloffen kopers',
     logo_buyer: 'Logo / tekst kopers',
     inactive_3m: 'Slapende klanten (3m+)',
     top_customers: 'Top klanten (op omzet)',
