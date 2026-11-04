@@ -8,7 +8,7 @@ export async function POST(req: NextRequest) {
   }
 
   const customer = await prisma.customer.findFirst({
-    where: { email: { equals: email.trim().toLowerCase(), mode: 'insensitive' } },
+    where: { email: email.trim().toLowerCase() },
     include: { _count: { select: { orders: true } } },
   })
 
