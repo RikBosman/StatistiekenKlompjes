@@ -30,6 +30,23 @@ export async function POST(req: NextRequest) {
   return NextResponse.json(template, { status: 201 })
 }
 
+export async function DELETE(req: NextRequest) {
+  const { searchParams } = new URL(req.url)
+  const id = Number(searchParams.get('id'))
+  if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
+
+  const usedBy = await prisma.campaign.count({ where: { templateId: id } })
+  if (usedBy > 0) {
+    return NextResponse.json(
+      { error: `Dit sjabloon wordt gebruikt door ${usedBy} campagne(s) en kan niet worden verwijderd.` },
+      { status: 409 }
+    )
+  }
+
+  await prisma.emailTemplate.delete({ where: { id } })
+  return NextResponse.json({ ok: true })
+}
+
 export async function PUT(req: NextRequest) {
   const body = await req.json()
   const parsed = schema.safeParse(body)

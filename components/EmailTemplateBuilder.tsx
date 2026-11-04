@@ -319,11 +319,16 @@ export default function EmailTemplateBuilder({
           subject: subject || 'Bericht van Klompjes',
           bodyHtml: generatedHtml,
           bodyJson: JSON.stringify(cfg),
-          isDefault: true,
+          isDefault: false,
         }),
       })
       if (res.ok) {
-        setMessage('Sjabloon opgeslagen!')
+        if (!template?.id) {
+          // New template created → redirect to list
+          window.location.href = '/dashboard/settings/email-template'
+        } else {
+          setMessage('Sjabloon opgeslagen!')
+        }
       } else {
         const d = await res.json()
         setMessage(`Fout: ${d.error || 'Onbekend'}`)
