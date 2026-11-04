@@ -35,8 +35,8 @@ export async function sendCampaign(campaignId: number, limit?: number): Promise<
   const baseUrl = process.env.DASHBOARD_URL || 'https://statistieken.klompjes.com'
   const utmParams = `utm_source=email&utm_medium=newsletter&utm_campaign=${encodeURIComponent(campaign.name)}&utm_content=campaign_${campaignId}`
 
-  // Use Resend batch API: 1 API call per 50 emails, 1 second between batches
-  const BATCH_SIZE = 50
+  // Resend rate limit: 10 req/sec counted per email, so 10 emails per 1.5s = ~6/sec
+  const BATCH_SIZE = 10
   for (let i = 0; i < pending.length; i += BATCH_SIZE) {
     const batch = pending.slice(i, i + BATCH_SIZE)
     const sentAt = new Date()
@@ -76,9 +76,9 @@ export async function sendCampaign(campaignId: number, limit?: number): Promise<
       failed += batch.length
     }
 
-    // 1 second between batches (Resend: max 10 req/sec, batch = 1 req)
+    // 1.5s between batches: 10 emails / 1.5s ≈ 6.7/sec (safely under Resend's 10/sec)
     if (i + BATCH_SIZE < pending.length) {
-      await new Promise((r) => setTimeout(r, 1000))
+      await new Promise((r) => setTimeout(r, 1500))
     }
   }
 

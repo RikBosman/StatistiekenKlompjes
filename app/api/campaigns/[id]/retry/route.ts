@@ -19,7 +19,8 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       data: { status: 'draft' },
     })
 
-    const result = await sendCampaign(campaignId)
+    // Limit per retry click to avoid HTTP timeout (nginx ~60s)
+    const result = await sendCampaign(campaignId, 200)
     return NextResponse.json(result)
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)

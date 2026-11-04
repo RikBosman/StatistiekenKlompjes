@@ -38,7 +38,22 @@ function isLogoItem(name: string): boolean {
   return LOGO_NAMES.some((k) => name.includes(k))
 }
 
+const BLOCKED_EMAIL_DOMAINS = ['@verkopen.bol.com']
+
+function isEmailAllowed(email: string): boolean {
+  const lower = email.toLowerCase()
+  return !BLOCKED_EMAIL_DOMAINS.some((d) => lower.endsWith(d))
+}
+
 export async function getSegmentCustomers(
+  segmentType: SegmentType,
+  listId?: number
+): Promise<SegmentCustomer[]> {
+  const result = await _getSegmentCustomers(segmentType, listId)
+  return result.filter((c) => isEmailAllowed(c.email))
+}
+
+async function _getSegmentCustomers(
   segmentType: SegmentType,
   listId?: number
 ): Promise<SegmentCustomer[]> {
