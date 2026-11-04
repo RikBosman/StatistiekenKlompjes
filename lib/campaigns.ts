@@ -16,6 +16,8 @@ export function renderTemplate(html: string, customer: { firstName: string; emai
     .replace(/\{\{naam\}\}/gi, customer.firstName || 'klant')
     .replace(/\{\{email\}\}/gi, customer.email)
     .replace(/\{\{unsubscribe_url\}\}/gi, customer.unsubscribeUrl || '#')
+    // Outlook doesn't support WebP — replace with jpg
+    .replace(/\.webp(\?[^"'\s]*)?(?=["'\s])/gi, '.jpg$1')
 }
 
 export async function sendCampaign(campaignId: number, limit?: number): Promise<{ sent: number; failed: number; remaining: number }> {
