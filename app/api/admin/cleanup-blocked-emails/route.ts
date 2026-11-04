@@ -3,11 +3,14 @@ import { prisma } from '@/lib/db'
 
 const BLOCKED_DOMAINS = ['@verkopen.bol.com']
 
-export async function POST() {
+export async function GET() {
+  return doCleanup()
+}
+
+async function doCleanup() {
   const results: Record<string, number> = {}
 
   for (const domain of BLOCKED_DOMAINS) {
-    // Remove campaign recipients with blocked domain
     const deleted = await prisma.campaignRecipient.deleteMany({
       where: { email: { endsWith: domain } },
     })
@@ -15,4 +18,8 @@ export async function POST() {
   }
 
   return NextResponse.json({ ok: true, deleted: results })
+}
+
+export async function POST() {
+  return doCleanup()
 }
