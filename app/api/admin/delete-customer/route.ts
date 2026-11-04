@@ -7,10 +7,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'E-mailadres vereist' }, { status: 400 })
   }
 
-  const customer = await prisma.customer.findFirst({
-    where: { email: email.trim().toLowerCase() },
-    include: { _count: { select: { orders: true } } },
-  })
+  const normalizedEmail = email.trim().toLowerCase()
+  // SQLite = is case-sensitive, use raw LOWER() for reliable match
+  const customers = await prisma.$queryRaw<Array<{ id: number; firstName: string; lastName: string; email: string }>>`
+    SELECT id, firstName, lastName, email FROM Customer WHERE LOWER(email) = ${normalizedEmail} LIMIT 1
+  `
+  const customer = customers[0]
+    ? { ...customers[0], _count: { orders: await prisma.order.count({ where: { customerId: customers[0].id } }) } }
+    : null
 
   if (!customer) {
     return NextResponse.json({ error: `Geen klant gevonden: ${email}` }, { status: 404 })
