@@ -1,7 +1,7 @@
 import { PrismaClient } from '@prisma/client'
 
 const prisma = new PrismaClient()
-const BLOCKED_DOMAINS = ['@verkopen.bol.com']
+const BLOCKED_DOMAINS = ['@verkopen.bol.com', '@bol.com']
 
 async function main() {
   // Show customer counts per bol.com variant

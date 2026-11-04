@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 
-const BLOCKED_DOMAINS = ['@verkopen.bol.com']
+const BLOCKED_DOMAINS = ['@verkopen.bol.com', '@bol.com']
 
 export async function GET() {
   return doCleanup()

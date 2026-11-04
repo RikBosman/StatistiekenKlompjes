@@ -38,7 +38,7 @@ function isLogoItem(name: string): boolean {
   return LOGO_NAMES.some((k) => name.includes(k))
 }
 
-const BLOCKED_EMAIL_DOMAINS = ['@verkopen.bol.com']
+const BLOCKED_EMAIL_DOMAINS = ['@verkopen.bol.com', '@bol.com']
 
 function isEmailAllowed(email: string): boolean {
   const lower = email.toLowerCase()

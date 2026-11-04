@@ -31,7 +31,7 @@ export async function sendCampaign(campaignId: number, limit?: number): Promise<
   let failed = 0
 
   // Also filter blocked domains at send time (catches existing DB records)
-  const BLOCKED_DOMAINS = ['@verkopen.bol.com']
+  const BLOCKED_DOMAINS = ['@verkopen.bol.com', '@bol.com']
   const allPending = campaign.recipients.filter(
     (r) => r.status === 'pending' && !BLOCKED_DOMAINS.some((d) => r.email.toLowerCase().endsWith(d))
   )
