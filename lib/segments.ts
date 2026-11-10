@@ -18,6 +18,7 @@ export type SegmentType =
   | 'cross_glaswerk_emmer'
   | 'cross_logo_gravering'
   | 'cross_gravering_logo'
+  | 'tweede_keus_buyer'
 
 export interface SegmentCustomer {
   id: number
@@ -310,6 +311,10 @@ async function _getSegmentCustomers(
     return keywordSegment(['tulp'])
   }
 
+  if (segmentType === 'tweede_keus_buyer') {
+    return keywordSegment(['2e keus', 'tweede keus'])
+  }
+
   const GLASWERK_KEYWORDS = ['aperol glas', 'bier glas', 'bierglas', 'speciaalbier', 'bierpul', 'champagneglas', 'champagne glas']
   const LOGO_KEYWORDS = ['logo', 'tekst']
   const GRAVERING_KEYWORDS = ['gravering']
@@ -372,6 +377,7 @@ export function segmentLabel(type: SegmentType): string {
     cross_glaswerk_emmer: 'Glaswerk kopers → upsell emmer',
     cross_logo_gravering: 'Logo/tekst kopers → upsell gravering',
     cross_gravering_logo: 'Gravering kopers → upsell logo klompen',
+    tweede_keus_buyer: 'Klompen hout 2e keus kopers',
   }
   return labels[type]
 }

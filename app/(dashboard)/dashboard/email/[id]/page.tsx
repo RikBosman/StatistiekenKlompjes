@@ -69,6 +69,7 @@ export default async function CampaignDetailPage({ params }: { params: Promise<{
     cross_glaswerk_emmer: 'Glaswerk → Emmer upsell',
     cross_logo_gravering: 'Logo/tekst → Gravering upsell',
     cross_gravering_logo: 'Gravering → Logo klompen upsell',
+    tweede_keus_buyer: 'Klompen hout 2e keus kopers',
   }
 
   return (

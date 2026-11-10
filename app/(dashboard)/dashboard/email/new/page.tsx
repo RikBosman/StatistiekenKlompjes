@@ -30,6 +30,7 @@ const SEGMENTS: SegmentInfo[] = [
   { type: 'gravering_buyer', label: 'Gravering kopers', description: 'Klanten die een product met gravering hebben besteld' },
   { type: 'klompen_logo_buyer', label: 'Klompen met logo/tekst kopers', description: 'Klanten die klompen met logo of tekst hebben besteld' },
   { type: 'tulp_buyer', label: 'Tulpen kopers', description: 'Klanten die tulpenpennen of andere tulpenproducten hebben besteld' },
+  { type: 'tweede_keus_buyer', label: 'Klompen hout 2e keus kopers', description: 'Klanten die klompen hout 2e keus hebben besteld' },
   { type: 'cross_emmer_glaswerk', label: 'Emmer → Glaswerk upsell', description: 'Emmers gekocht, maar nog nooit glaswerk besteld' },
   { type: 'cross_glaswerk_emmer', label: 'Glaswerk → Emmer upsell', description: 'Glaswerk gekocht, maar nog nooit een emmer besteld' },
   { type: 'cross_logo_gravering', label: 'Logo/tekst → Gravering upsell', description: 'Logo of tekst product gekocht, maar nog nooit gravering besteld' },
