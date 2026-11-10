@@ -92,7 +92,7 @@ export async function syncOrders(afterDate?: string, beforeDate?: string): Promi
       totalPages = tp
 
       for (const o of orders) {
-        const customerEmail = o.billing?.email || ''
+        const customerEmail = (o.billing?.email || '').toLowerCase().trim()
         const customerName = `${o.billing?.first_name || ''} ${o.billing?.last_name || ''}`.trim()
         const shippingMethod = o.shipping_lines?.[0]?.method_title ?? null
 

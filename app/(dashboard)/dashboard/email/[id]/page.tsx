@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/db'
+import { Prisma } from '@prisma/client'
 import { formatDate, formatCurrency } from '@/lib/utils'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
@@ -40,18 +41,17 @@ export default async function CampaignDetailPage({ params }: { params: Promise<{
     .sort((a, b) => a.getTime() - b.getTime())[0]
   const attributionStart = firstSentRecipient ?? campaign.sentAt
   if (attributionStart && campaign.recipients.length > 0) {
-    const emails = campaign.recipients.map((r) => r.email)
-    const agg = await prisma.order.aggregate({
-      where: {
-        customerEmail: { in: emails },
-        date: { gte: attributionStart },
-        status: { notIn: ['cancelled', 'refunded'] },
-      },
-      _sum: { total: true },
-      _count: { id: true },
-    })
-    attributedRevenue = agg._sum.total ?? 0
-    attributedOrders = agg._count.id
+    const emails = campaign.recipients.map((r) => r.email.toLowerCase())
+    // Use raw query: SQLite IN() is case-sensitive, LOWER() ensures matching
+    const rows = await prisma.$queryRaw<Array<{ revenue: number | null; cnt: bigint }>>`
+      SELECT SUM(total) as revenue, COUNT(id) as cnt
+      FROM orders
+      WHERE LOWER(customerEmail) IN (${Prisma.join(emails)})
+      AND date >= ${attributionStart.toISOString()}
+      AND status NOT IN ('cancelled', 'refunded')
+    `
+    attributedRevenue = Number(rows[0]?.revenue ?? 0)
+    attributedOrders = Number(rows[0]?.cnt ?? 0)
   }
 
   const segmentLabels: Record<string, string> = {
