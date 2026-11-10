@@ -10,8 +10,8 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     const campaign = await prisma.campaign.findUnique({ where: { id: campaignId } })
     if (!campaign) return NextResponse.json({ error: 'Niet gevonden' }, { status: 404 })
 
-    // For batched campaigns, only send first batch now; cron handles the rest
-    const limit = campaign.dailyLimit > 0 ? campaign.dailyLimit : undefined
+    // Cap at 200 per request to avoid HTTP timeout; user clicks retry for remaining
+    const limit = campaign.dailyLimit > 0 ? Math.min(campaign.dailyLimit, 200) : 200
     const result = await sendCampaign(campaignId, limit)
     return NextResponse.json(result)
   } catch (err) {
